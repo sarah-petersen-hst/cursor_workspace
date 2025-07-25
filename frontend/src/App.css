@@ -1,0 +1,457 @@
+/*
+  Salsa Dance Events Finder - Custom Styles
+  - Orange: #E92932 (buttons)
+  - Brown: #221112 (background)
+  - Font: 'Poppins', sans-serif (to be loaded in index.html or via @import)
+*/
+
+body, .App {
+  background-color: #221112;
+  min-height: 100vh;
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Navigation Bar */
+.navbar {
+  width: 100%;
+  background: #221112;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.navbar-main {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 0 2rem;
+}
+.navbar-item {
+  margin-right: 2rem;
+  position: relative;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 1rem 0;
+}
+.navbar-subitems {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  background: #221112;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  min-width: 160px;
+  overflow: hidden;
+}
+.navbar-subitem {
+  padding: 0.75rem 1.5rem;
+  color: #fff;
+  transition: background 0.2s;
+}
+.navbar-subitem:hover {
+  background: #E92932;
+}
+
+/* Header */
+.header {
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #221112;
+}
+.header-image-container {
+  width: 100%;
+  height: 500px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.header-image {
+  width: 100vw;
+  height: 500px;
+  object-fit: cover;
+  object-position: top;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+}
+.header-headline {
+  position: relative;
+  z-index: 2;
+  color: #fff;
+  font-size: 2.8rem;
+  text-align: center;
+  width: 100%;
+  margin: 0;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* Main Content */
+.main-content {
+  width: 75vw;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+  padding-top: 2rem;
+}
+
+/* Orange Button Style */
+.button, button {
+  background: #E92932;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.button:hover, button:hover {
+  background: #b71c1c;
+}
+
+/* Filter/Search Container */
+.filter-container {
+  position: relative;
+  top: -60px; /* Overlap header */
+  margin: 0 auto 2rem auto;
+  width: 75vw;
+  background: #2d1818;
+  border-radius: 24px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem 2rem 1rem 2rem;
+  z-index: 10;
+  min-height: 90px;
+}
+
+/* Dance Style Labels */
+.style-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 2 1 350px;
+}
+.style-label {
+  border-radius: 50%;
+  background: #3a2323;
+  color: #fff;
+  border: 2px solid #E92932;
+  padding: 0.7rem 1.2rem;
+  font-size: 1rem;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  outline: none;
+  min-width: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.style-label.selected {
+  background: #7a001a;
+  color: #fff;
+  border-color: #7a001a;
+}
+.style-label:focus {
+  box-shadow: 0 0 0 3px #E92932;
+}
+
+/* City Select */
+.city-select {
+  flex: 1 1 180px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+}
+.city-select input[type="text"] {
+  border-radius: 24px;
+  border: 2px solid #E92932;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-family: 'Poppins', sans-serif;
+  background: #221112;
+  color: #fff;
+  outline: none;
+  margin-bottom: 0;
+}
+.city-select input[type="text"]:focus {
+  border-color: #E92932;
+  box-shadow: 0 0 0 2px #E92932;
+}
+
+/* Date Input */
+.date-input {
+  flex: 1 1 140px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+}
+.date-input input[type="date"] {
+  border-radius: 24px;
+  border: 2px solid #E92932;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-family: 'Poppins', sans-serif;
+  background: #221112;
+  color: #fff;
+  outline: none;
+}
+.date-input input[type="date"]:focus {
+  border-color: #E92932;
+  box-shadow: 0 0 0 2px #E92932;
+}
+
+/* Search Button */
+.search-button {
+  margin-left: auto;
+  margin-right: 0;
+  align-self: flex-end;
+  min-width: 120px;
+  font-weight: 700;
+}
+
+/* Events Container */
+.events-container {
+  background: #2d1818;
+  border-radius: 24px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+  margin-top: 2rem;
+  padding: 2rem 2rem 1rem 2rem;
+}
+.events-heading {
+  color: #fff;
+  font-size: 2rem;
+  font-family: 'Poppins', sans-serif;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+}
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Event Card */
+.event-card {
+  background: #221112;
+  border-radius: 16px;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+  font-family: 'Poppins', sans-serif;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-left: 6px solid #E92932;
+  position: relative;
+}
+.event-title-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.2rem;
+}
+.event-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+}
+.trusted-label {
+  background: #E92932;
+  color: #fff;
+  border-radius: 12px;
+  padding: 0.2rem 0.8rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  letter-spacing: 0.02em;
+}
+.event-date,
+.event-address,
+.event-source {
+  font-size: 1rem;
+  color: #e0d6d6;
+}
+.event-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.7rem;
+}
+.event-save,
+.event-details {
+  min-width: 100px;
+  font-weight: 600;
+}
+
+/* Divider between event cards */
+.event-card + .event-card {
+  border-top: 1px solid #3a2323;
+  margin-top: 2rem;
+  padding-top: 2rem;
+}
+
+/* Expanded Event Details */
+.event-details-expanded {
+  margin-top: 1.5rem;
+  background: #2d1818;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+  padding: 1.5rem 1.5rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  font-family: 'Poppins', sans-serif;
+  color: #fff;
+}
+.details-workshops, .details-party {
+  background: #221112;
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+.details-workshops h3, .details-party h3 {
+  margin-top: 0;
+  margin-bottom: 0.7rem;
+  font-size: 1.1rem;
+  color: #E92932;
+  font-weight: 700;
+}
+.workshop-row {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  align-items: center;
+}
+.workshop-time {
+  min-width: 90px;
+  font-weight: 600;
+}
+.workshop-style {
+  min-width: 80px;
+}
+.workshop-level {
+  font-style: italic;
+  color: #e0d6d6;
+}
+.party-time {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.party-floors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.party-floor {
+  font-size: 1rem;
+}
+.floor-name {
+  font-weight: 600;
+  color: #E92932;
+}
+
+/* Voting Section */
+.details-voting {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1.2rem;
+}
+.vote-exists, .vote-not-exists {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-weight: 700;
+  font-size: 1rem;
+  border: 2px solid transparent;
+  transition: background 0.2s, border 0.2s;
+}
+.vote-exists.highlight {
+  background: #1e4d2b;
+  border-color: #1e4d2b;
+  color: #fff;
+}
+.vote-not-exists.highlight {
+  background: #bfa900;
+  border-color: #bfa900;
+  color: #221112;
+}
+.vote-count {
+  background: #fff;
+  color: #E92932;
+  border-radius: 50%;
+  padding: 0.2rem 0.7rem;
+  font-weight: 700;
+  margin-left: 0.3rem;
+  font-size: 1rem;
+}
+
+/* Green status bar for likely real events */
+.event-card.likely-real {
+  border-left: 8px solid #1eaf3b;
+  position: relative;
+}
+
+/* Optionally, make the bar more prominent */
+.event-card.likely-real::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 8px;
+  background: #1eaf3b;
+  border-radius: 8px 0 0 8px;
+  z-index: 2;
+}
+
+/* Remove the default red bar for likely real events */
+.event-card.likely-real {
+  border-left: none;
+}
+
+@media (max-width: 900px) {
+  .main-content, .filter-container {
+    width: 95vw;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .filter-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.2rem;
+  }
+  .style-labels {
+    justify-content: flex-start;
+  }
+  .events-container {
+    padding: 1rem 0.5rem 0.5rem 0.5rem;
+  }
+  .event-card {
+    padding: 1rem 1rem;
+  }
+  .event-details-expanded {
+    padding: 1rem 0.5rem;
+  }
+}
