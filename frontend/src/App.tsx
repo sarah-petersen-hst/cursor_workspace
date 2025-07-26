@@ -97,7 +97,7 @@ const EVENT_DETAILS: Record<string, EventDetails> = {
         { floor: 'Second Floor', distribution: '100% Kizomba' },
       ],
     },
-    votes: { exists: 12, notExists: 3, highlight: 'green' },
+    votes: { exists: 3, notExists: 3, highlight: 'green' },
   },
   '2': {
     workshops: [
@@ -155,18 +155,17 @@ function EventCard({ event }: { event: Event }) {
    */
   const [votes, setVotes] = useState(details.votes);
   const handleVote = (type: 'exists' | 'notExists') => {
-    setVotes((prev) => ({
-      ...prev,
-      [type]: prev[type] + 1,
-      highlight:
-        type === 'exists'
-          ? prev.exists + 1 > prev.notExists
-            ? 'green'
-            : 'yellow'
-          : prev.notExists + 1 >= prev.exists
-          ? 'yellow'
-          : 'green',
-    }));
+    setVotes((prev) => {
+      const newExists = type === 'exists' ? prev.exists + 1 : prev.exists;
+      const newNotExists = type === 'notExists' ? prev.notExists + 1 : prev.notExists;
+      const newHighlight = newExists > newNotExists ? 'green' : 'yellow';
+      return {
+        ...prev,
+        exists: newExists,
+        notExists: newNotExists,
+        highlight: newHighlight,
+      };
+    });
   };
   // Determine if the event is likely real (green status bar)
   const isLikelyReal = votes.highlight === 'green';
