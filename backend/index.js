@@ -121,6 +121,30 @@ app.get('/api/votes/:eventId', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/cities?query=...
+ * Returns a list of city names matching the query. Safe from SQL injection.
+ */
+app.get('/api/cities', async (req, res) => {
+  const { query } = req.query;
+  if (typeof query !== 'string' || query.length > 100) {
+    return res.status(400).json({ error: 'Invalid city query' });
+  }
+  // Only allow letters, spaces, hyphens, and German umlauts
+  if (!/^[a-zA-ZäöüÄÖÜß \-]*$/.test(query)) {
+    return res.status(400).json({ error: 'Invalid characters in city query' });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT name FROM cities WHERE name ILIKE $1 LIMIT 10',
+      [`%${query}%`]
+    );
+    res.json(result.rows.map(row => row.name));
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Backend API listening on port ${PORT}`);
 }); 

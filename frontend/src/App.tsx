@@ -38,6 +38,8 @@ const CITIES = [
 /**
  * Type definition for an event.
  */
+type VenueType = 'Indoor' | 'Outdoor' | 'Not specified';
+
 type Event = {
   id: string;
   name: string;
@@ -45,6 +47,8 @@ type Event = {
   address: string;
   source: string;
   trusted: boolean;
+  recurrence?: string; // e.g., 'every Tuesday', 'every second Friday', etc.
+  venueType?: VenueType;
 };
 
 /**
@@ -126,6 +130,8 @@ const EVENTS: Event[] = [
     address: 'Alexanderplatz 1, 10178 Berlin',
     source: 'SalsaBerlin.de',
     trusted: true,
+    recurrence: 'every Tuesday',
+    venueType: 'Indoor',
   },
   {
     id: '2',
@@ -134,6 +140,27 @@ const EVENTS: Event[] = [
     address: 'Kulturbrauerei, Schönhauser Allee 36, 10435 Berlin',
     source: 'Facebook',
     trusted: false,
+    recurrence: 'every second Friday',
+    venueType: 'Outdoor',
+  },
+  {
+    id: '3',
+    name: 'Zouk Open Air',
+    date: '2024-05-25',
+    address: 'Tempelhofer Feld, Berlin',
+    source: 'ZoukBerlin.de',
+    trusted: false,
+    venueType: 'Outdoor',
+  },
+  {
+    id: '4',
+    name: 'Monthly Salsa Social',
+    date: '2024-06-01',
+    address: 'Salsa Club, Berlin',
+    source: 'Meetup',
+    trusted: false,
+    recurrence: 'every 1st Saturday of the month',
+    venueType: 'Not specified',
   },
 ];
 
@@ -207,6 +234,9 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
   // Determine if the event is likely real (green status bar)
   const isLikelyReal = voteData?.highlight === 'green';
 
+  // Find the event in EVENTS to get recurrence and venueType
+  const eventMeta = EVENTS.find(e => e.id === event.id);
+
   return (
     <div className={`event-card${isLikelyReal ? ' likely-real' : ''}`}>
       <div className="event-title-row">
@@ -232,6 +262,23 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
         <div className="event-details-expanded" id={`details-${event.id}`}
           tabIndex={-1} aria-label={`Details for ${event.name}`}
         >
+          {/* Event Meta */}
+          <div className="event-meta">
+            {/* Recurrence info */}
+            {eventMeta?.recurrence && (
+              <div className="event-recurrence">
+                <span role="img" aria-label="recurring">🔁</span> This event takes place {eventMeta.recurrence}
+              </div>
+            )}
+            {/* Venue type */}
+            <div className={`event-venue-type venue-${(eventMeta?.venueType || 'not-specified').toLowerCase().replace(/ /g, '-')}`}>Venue: {eventMeta?.venueType || 'Not specified'}</div>
+            {/* Weather warning for outdoor venues */}
+            {eventMeta?.venueType === 'Outdoor' && (
+              <div className="event-weather-warning">
+                <span role="img" aria-label="weather">⚠️</span> Note: This event takes place outdoors and may be weather-dependent.
+              </div>
+            )}
+          </div>
           {/* Workshops */}
           <div className="details-workshops">
             <h3>Workshops</h3>
@@ -330,6 +377,36 @@ function App() {
   const [activeView, setActiveView] = useState<'find' | 'saved'>('find');
   // Header shrink state
   const [headerHeight, setHeaderHeight] = useState(500);
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [cityLoading, setCityLoading] = useState(false);
+  const [cityError, setCityError] = useState<string | null>(null);
+
+  // Debounced city search
+  useEffect(() => {
+    if (!cityQuery) {
+      setCitySuggestions([]);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      setCityLoading(true);
+      setCityError(null);
+      try {
+        const res = await fetch(`http://localhost:4000/api/cities?query=${encodeURIComponent(cityQuery)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setCitySuggestions(data);
+        } else {
+          setCitySuggestions([]);
+        }
+      } catch (err) {
+        setCityError('Failed to fetch cities');
+        setCitySuggestions([]);
+      } finally {
+        setCityLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [cityQuery]);
 
   // Save/unsave event
   const toggleSaveEvent = useCallback((eventId: string) => {
@@ -452,13 +529,18 @@ function App() {
               value={cityQuery}
               onChange={(e) => setCityQuery(e.target.value)}
               aria-label="City"
+              autoComplete="off"
               list="city-list"
             />
-            <datalist id="city-list">
-              {filteredCities.map((city) => (
-                <option key={city} value={city} />
-              ))}
-            </datalist>
+            {cityLoading && <div className="city-loading">Loading...</div>}
+            {cityError && <div className="city-error">{cityError}</div>}
+            {citySuggestions.length > 0 && (
+              <ul className="city-suggestions">
+                {citySuggestions.map((city) => (
+                  <li key={city} onClick={() => { setCityQuery(city); setSelectedCity(city); setCitySuggestions([]); }}>{city}</li>
+                ))}
+              </ul>
+            )}
           </div>
           {/* Date Input */}
           <div className="date-input">
