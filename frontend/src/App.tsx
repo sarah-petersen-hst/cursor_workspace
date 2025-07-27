@@ -179,6 +179,14 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
   const [voteError, setVoteError] = useState<string | null>(null);
   const userUuid = getOrCreateUserUuid();
 
+  // Venue voting state
+  const [venueVoteData, setVenueVoteData] = useState<{ indoor: number; outdoor: number; userVote: 'indoor' | 'outdoor' | null }>({ indoor: 0, outdoor: 0, userVote: null });
+  const [venueVoteLoading, setVenueVoteLoading] = useState(false);
+  const [venueVoteError, setVenueVoteError] = useState<string | null>(null);
+
+  // Find the event in EVENTS to get recurrence and venueType
+  const eventMeta = EVENTS.find(e => e.id === event.id);
+
   /**
    * Fetch vote counts and the user's vote for this event from the backend.
    */
@@ -225,17 +233,75 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
     }
   };
 
+  // Fetch venue votes for this event
+  const fetchVenueVotes = async () => {
+    setVenueVoteLoading(true);
+    setVenueVoteError(null);
+    try {
+      const res = await fetch(`http://localhost:4000/api/venue-votes/${event.id}?userUuid=${userUuid}`);
+      const data = await res.json();
+      setVenueVoteData({
+        indoor: data.counts?.indoor || 0,
+        outdoor: data.counts?.outdoor || 0,
+        userVote: data.userVote || null,
+      });
+    } catch (err) {
+      setVenueVoteError('Failed to fetch venue votes');
+    } finally {
+      setVenueVoteLoading(false);
+    }
+  };
+
+  // Submit venue vote
+  const submitVenueVote = async (voteType: 'indoor' | 'outdoor') => {
+    setVenueVoteError(null);
+    setVenueVoteLoading(true);
+    try {
+      await fetch('http://localhost:4000/api/venue-vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: event.id, userUuid, voteType }),
+      });
+      await fetchVenueVotes();
+    } catch (err) {
+      setVenueVoteError('Failed to submit venue vote');
+    } finally {
+      setVenueVoteLoading(false);
+    }
+  };
+
+  // Withdraw venue vote
+  const withdrawVenueVote = async () => {
+    setVenueVoteError(null);
+    setVenueVoteLoading(true);
+    try {
+      await fetch('http://localhost:4000/api/venue-vote', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: event.id, userUuid }),
+      });
+      await fetchVenueVotes();
+    } catch (err) {
+      setVenueVoteError('Failed to withdraw venue vote');
+    } finally {
+      setVenueVoteLoading(false);
+    }
+  };
+
   // Fetch votes when details are expanded
   useEffect(() => {
     if (expanded) fetchVotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded]);
 
+  // Fetch venue votes when details are expanded and venueType is Not specified
+  useEffect(() => {
+    if (expanded && eventMeta?.venueType === 'Not specified') fetchVenueVotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, eventMeta?.venueType]);
+
   // Determine if the event is likely real (green status bar)
   const isLikelyReal = voteData?.highlight === 'green';
-
-  // Find the event in EVENTS to get recurrence and venueType
-  const eventMeta = EVENTS.find(e => e.id === event.id);
 
   return (
     <div className={`event-card${isLikelyReal ? ' likely-real' : ''}`}>
@@ -266,16 +332,28 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
           <div className="event-meta">
             {/* Recurrence info */}
             {eventMeta?.recurrence && (
-              <div className="event-recurrence">
-                <span role="img" aria-label="recurring">🔁</span> This event takes place {eventMeta.recurrence}
+              <div className="event-recurrence-pretty">
+                <span className="recurrence-icon">
+                  {/* Repeat SVG icon */}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#E92932"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.3-.42 2.5-1.13 3.47l1.46 1.46C19.07 15.07 20 13.13 20 11c0-4.42-3.58-8-8-8zm-6.36 2.05l1.41 1.41C5.07 8.93 4 10.87 4 13c0 4.42 3.58 8 8 8v3l4-4-4-4v3c-3.31 0-6-2.69-6-6 0-1.3.42-2.5 1.13-3.47z"/></svg>
+                </span>
+                <span className="recurrence-text">
+                  <span className="recurrence-label">Repeats:</span> <b>{eventMeta.recurrence}</b>
+                </span>
               </div>
             )}
             {/* Venue type */}
             <div className={`event-venue-type venue-${(eventMeta?.venueType || 'not-specified').toLowerCase().replace(/ /g, '-')}`}>Venue: {eventMeta?.venueType || 'Not specified'}</div>
             {/* Weather warning for outdoor venues */}
             {eventMeta?.venueType === 'Outdoor' && (
-              <div className="event-weather-warning">
-                <span role="img" aria-label="weather">⚠️</span> Note: This event takes place outdoors and may be weather-dependent.
+              <div className="event-weather-warning-pretty">
+                <span className="weather-icon">
+                  {/* Warning SVG icon */}
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                </span>
+                <span>
+                  <b>Weather Warning:</b> This event takes place outdoors and may be weather-dependent.
+                </span>
               </div>
             )}
           </div>
@@ -352,6 +430,41 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
             )}
             {voteError && <span className="vote-error">{voteError}</span>}
           </div>
+          {eventMeta?.venueType === 'Not specified' && (
+            <div className="venue-voting-ui">
+              <div className="venue-voting-label">What type of venue is this?</div>
+              <div className="venue-voting-buttons">
+                <button
+                  className={`venue-vote-btn${venueVoteData.userVote === 'indoor' ? ' your-vote' : ''}`}
+                  onClick={() => submitVenueVote('indoor')}
+                  disabled={venueVoteLoading}
+                  aria-label="Vote for Indoor"
+                >
+                  <span className="venue-vote-icon">
+                    {/* House SVG */}
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="#1e4d2b"><path d="M12 3l10 9h-3v9h-6v-6h-2v6H5v-9H2z"/></svg>
+                  </span>
+                  Indoor <span className="venue-vote-count">{venueVoteData.indoor}</span>
+                </button>
+                <button
+                  className={`venue-vote-btn${venueVoteData.userVote === 'outdoor' ? ' your-vote' : ''}`}
+                  onClick={() => submitVenueVote('outdoor')}
+                  disabled={venueVoteLoading}
+                  aria-label="Vote for Outdoor"
+                >
+                  <span className="venue-vote-icon">
+                    {/* Tree SVG */}
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="#388e3c"><path d="M12 2C10.34 2 9 3.34 9 5c0 .88.39 1.67 1 2.22V9H7.41c-.89 0-1.34 1.08-.71 1.71l2.29 2.29H7c-.89 0-1.34 1.08-.71 1.71l4 4c.39.39 1.02.39 1.41 0l4-4c.63-.63.18-1.71-.71-1.71h-1.99l2.29-2.29c.63-.63.18-1.71-.71-1.71H14V7.22c.61-.55 1-1.34 1-2.22 0-1.66-1.34-3-3-3z"/></svg>
+                  </span>
+                  Outdoor <span className="venue-vote-count">{venueVoteData.outdoor}</span>
+                </button>
+                {venueVoteData.userVote && (
+                  <button className="venue-vote-btn withdraw" onClick={withdrawVenueVote} disabled={venueVoteLoading} aria-label="Withdraw venue vote">Withdraw Vote</button>
+                )}
+              </div>
+              {venueVoteError && <div className="venue-vote-error">{venueVoteError}</div>}
+            </div>
+          )}
         </div>
       )}
     </div>

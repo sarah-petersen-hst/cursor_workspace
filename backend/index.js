@@ -122,6 +122,83 @@ app.get('/api/votes/:eventId', async (req, res) => {
 });
 
 /**
+ * Venue voting table: event_id, user_uuid, vote_type ('indoor' | 'outdoor'), vote_time
+ * POST /api/venue-vote: { eventId, userUuid, voteType }
+ * GET /api/venue-votes/:eventId: returns counts and user vote
+ * DELETE /api/venue-vote: { eventId, userUuid }
+ */
+
+// POST venue vote (upsert)
+app.post('/api/venue-vote', async (req, res) => {
+  const { eventId, userUuid, voteType } = req.body;
+  if (!eventId || !userUuid || !['indoor', 'outdoor'].includes(voteType)) {
+    return res.status(400).json({ error: 'Invalid request body' });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO venue_votes (event_id, user_uuid, vote_type, vote_time)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (event_id, user_uuid)
+       DO UPDATE SET vote_type = EXCLUDED.vote_type, vote_time = NOW()
+       RETURNING *;`,
+      [eventId, userUuid, voteType]
+    );
+    res.json({ success: true, vote: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET venue votes for an event
+app.get('/api/venue-votes/:eventId', async (req, res) => {
+  const { eventId } = req.params;
+  const { userUuid } = req.query;
+  try {
+    const result = await pool.query(
+      `SELECT vote_type, COUNT(*) AS count
+       FROM venue_votes
+       WHERE event_id = $1
+       GROUP BY vote_type;`,
+      [eventId]
+    );
+    const counts = { indoor: 0, outdoor: 0 };
+    for (const row of result.rows) {
+      counts[row.vote_type] = parseInt(row.count, 10);
+    }
+    let userVote = null;
+    if (userUuid) {
+      const userResult = await pool.query(
+        `SELECT vote_type FROM venue_votes WHERE event_id = $1 AND user_uuid = $2 LIMIT 1;`,
+        [eventId, userUuid]
+      );
+      if (userResult.rows.length > 0) {
+        userVote = userResult.rows[0].vote_type;
+      }
+    }
+    res.json({ eventId, counts, userVote });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// DELETE venue vote
+app.delete('/api/venue-vote', async (req, res) => {
+  const { eventId, userUuid } = req.body;
+  if (!eventId || !userUuid) {
+    return res.status(400).json({ error: 'Invalid request body' });
+  }
+  try {
+    await pool.query(
+      `DELETE FROM venue_votes WHERE event_id = $1 AND user_uuid = $2`,
+      [eventId, userUuid]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+/**
  * GET /api/cities?query=...
  * Returns a list of city names matching the query. Safe from SQL injection.
  */

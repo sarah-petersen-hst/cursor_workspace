@@ -381,6 +381,7 @@ body, .App {
   display: flex;
   gap: 1.5rem;
   margin-top: 1.2rem;
+  justify-content: center;
 }
 .vote-exists, .vote-not-exists {
   display: flex;
@@ -674,4 +675,142 @@ body, .App {
   align-items: center;
   gap: 0.5rem;
   box-shadow: 0 2px 8px rgba(233,41,50,0.18);
+}
+
+/* Prettier recurrence display */
+.event-recurrence-pretty {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: #2d1818;
+  border-radius: 16px;
+  padding: 0.4rem 1rem;
+  font-size: 1.05rem;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(233,41,50,0.08);
+}
+.recurrence-icon {
+  background: #fff;
+  border-radius: 50%;
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.recurrence-label {
+  color: #E92932;
+  font-weight: 700;
+  margin-right: 0.3rem;
+}
+
+/* Prettier weather warning display */
+.event-weather-warning-pretty {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: linear-gradient(90deg, #E92932 80%, #bfa900 100%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 0.6rem 1.2rem;
+  font-size: 1.08rem;
+  font-weight: 700;
+  box-shadow: 0 2px 12px rgba(233,41,50,0.18);
+  margin-top: 0.5rem;
+  animation: pulse-warning 2s infinite alternate;
+}
+.weather-icon {
+  background: #bfa900;
+  border-radius: 50%;
+  padding: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+@keyframes pulse-warning {
+  0% { box-shadow: 0 0 0 0 #E92932; }
+  100% { box-shadow: 0 0 0 8px rgba(233,41,50,0.15); }
+}
+
+/* Venue voting UI */
+.venue-voting-ui {
+  margin-top: 1.2rem;
+  background: #2d1818;
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.venue-voting-label {
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.venue-voting-buttons {
+  display: flex;
+  gap: 1.2rem;
+  align-items: center;
+  justify-content: center;
+}
+.venue-vote-btn {
+  background: #fff;
+  color: #1e4d2b;
+  border: 2px solid #E92932;
+  border-radius: 24px;
+  padding: 0.6rem 1.4rem;
+  font-size: 1rem;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  outline: none;
+  min-width: 120px;
+}
+.venue-vote-btn:hover {
+  background: #E92932;
+  color: #fff;
+}
+.venue-vote-btn.your-vote {
+  background: #E92932;
+  color: #fff;
+  border: 2px solid #1e4d2b;
+  box-shadow: 0 0 0 3px #E92932;
+}
+.venue-vote-btn.withdraw {
+  background: #444;
+  color: #fff;
+  border: 2px solid #E92932;
+  min-width: 100px;
+  font-weight: 700;
+  opacity: 0.85;
+  margin-left: 1rem;
+}
+.venue-vote-btn.withdraw:hover {
+  background: #E92932;
+  color: #fff;
+  opacity: 1;
+}
+.venue-vote-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.venue-vote-count {
+  background: #fff;
+  color: #E92932;
+  border-radius: 50%;
+  padding: 0.2rem 0.7rem;
+  font-weight: 700;
+  margin-left: 0.3rem;
+  font-size: 1rem;
+}
+.venue-vote-error {
+  color: #E92932;
+  font-size: 0.98rem;
+  margin-top: 0.4rem;
 }
