@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import headerImage from './couple_small_LE_upscale_balanced_x4_2.png';
-import { getOrCreateUserUuid } from './utils';
+import { getOrCreateUserUuid, getSavedEventIds, setSavedEventIds } from './utils';
 
 /**
  * List of available dance styles for filtering events.
@@ -144,7 +144,7 @@ const EVENTS: Event[] = [
  * @param {Event} event - The event to display.
  * @returns {JSX.Element}
  */
-function EventCard({ event }: { event: Event }) {
+function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: boolean; onToggleSave?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [voteData, setVoteData] = useState<{ exists: number; not_exists: number; highlight: 'green' | 'yellow'; week: string } | null>(null);
   const [userVote, setUserVote] = useState<'exists' | 'not_exists' | null>(null);
@@ -217,7 +217,15 @@ function EventCard({ event }: { event: Event }) {
       <div className="event-address">{event.address}</div>
       <div className="event-source">Source: {event.source}</div>
       <div className="event-actions">
-        <button className="button event-save">Save</button>
+        {onToggleSave && (
+          <button
+            className={`button event-save${isSaved ? ' saved' : ''}`}
+            onClick={onToggleSave}
+            aria-label={isSaved ? 'Unsave event' : 'Save event'}
+          >
+            {isSaved ? 'Unsave' : 'Save'}
+          </button>
+        )}
         <button className="button event-details" onClick={() => setExpanded((prev) => !prev)} aria-expanded={expanded} aria-controls={`details-${event.id}`}>{expanded ? 'Hide Details' : 'Details'}</button>
       </div>
       {expanded && (
@@ -305,7 +313,7 @@ function EventCard({ event }: { event: Event }) {
 
 /**
  * Main application component for the Salsa Dance Events Finder.
- * Implements the navigation bar, header, and main layout structure.
+ * Implements navigation, header, main layout, saved events, and dynamic header image.
  * @returns {JSX.Element} The root component.
  */
 function App() {
@@ -316,6 +324,36 @@ function App() {
   const [selectedCity, setSelectedCity] = useState('');
   // State for date
   const [selectedDate, setSelectedDate] = useState('');
+  // Saved events state
+  const [savedEventIds, setSavedEventIdsState] = useState<string[]>(getSavedEventIds());
+  // Navigation state
+  const [activeView, setActiveView] = useState<'find' | 'saved'>('find');
+  // Header shrink state
+  const [headerHeight, setHeaderHeight] = useState(500);
+
+  // Save/unsave event
+  const toggleSaveEvent = useCallback((eventId: string) => {
+    setSavedEventIdsState((prev) => {
+      const next = prev.includes(eventId)
+        ? prev.filter((id) => id !== eventId)
+        : [...prev, eventId];
+      setSavedEventIds(next);
+      return next;
+    });
+  }, []);
+
+  // Listen for scroll to shrink header
+  useEffect(() => {
+    const onScroll = () => {
+      const minHeight = 120;
+      const maxHeight = 500;
+      const scrollY = window.scrollY;
+      const newHeight = Math.max(minHeight, maxHeight - scrollY);
+      setHeaderHeight(newHeight);
+    };
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   /**
    * Handles toggling a dance style in the multi-select.
@@ -355,6 +393,18 @@ function App() {
       )
     : CITIES;
 
+  // Get saved events
+  const savedEvents = EVENTS.filter((e) => savedEventIds.includes(e.id));
+
+  // EventCard with save/unsave logic
+  function EventCardWithSave(props: { event: Event }) {
+    const { event } = props;
+    const isSaved = savedEventIds.includes(event.id);
+    return (
+      <EventCard event={event} isSaved={isSaved} onToggleSave={() => toggleSaveEvent(event.id)} />
+    );
+  }
+
   return (
     <div className="App">
       {/* Navigation Bar */}
@@ -363,77 +413,95 @@ function App() {
           <div className="navbar-item">
             Events
             <div className="navbar-subitems">
-              <div className="navbar-subitem">Find Events</div>
-              <div className="navbar-subitem">Saved Events</div>
+              <div className="navbar-subitem" onClick={() => setActiveView('find')}>Find Events</div>
+              <div className="navbar-subitem" onClick={() => setActiveView('saved')}>Saved Events</div>
             </div>
           </div>
           <div className="navbar-item">Legal Notice</div>
         </div>
       </nav>
       {/* Header with image and headline */}
-      <header className="header">
-        <div className="header-image-container">
-          <img src={headerImage} alt="Dancing couple" className="header-image" />
+      <header className="header" style={{ height: headerHeight }}>
+        <div className="header-image-container" style={{ height: headerHeight }}>
+          <img src={headerImage} alt="Dancing couple" className="header-image" style={{ height: headerHeight }} />
           <h1 className="header-headline">Find your Latin Dance Party</h1>
         </div>
       </header>
-      {/* Filter/Search Container */}
-      <section className="filter-container">
-        {/* Dance Style Multi-Select */}
-        <div className="style-labels">
-          {DANCE_STYLES.map((style) => (
-            <button
-              key={style}
-              type="button"
-              className={`style-label${selectedStyles.includes(style) ? ' selected' : ''}`}
-              onClick={() => handleStyleToggle(style)}
-              aria-pressed={selectedStyles.includes(style)}
-            >
-              {style}
-            </button>
-          ))}
-        </div>
-        {/* City Searchable Select */}
-        <div className="city-select">
-          <input
-            type="text"
-            placeholder="Type city..."
-            value={cityQuery}
-            onChange={(e) => setCityQuery(e.target.value)}
-            aria-label="City"
-            list="city-list"
-          />
-          <datalist id="city-list">
-            {filteredCities.map((city) => (
-              <option key={city} value={city} />
+      {/* Filter/Search Container (only in Find Events view) */}
+      {activeView === 'find' && (
+        <section className="filter-container">
+          {/* Dance Style Multi-Select */}
+          <div className="style-labels">
+            {DANCE_STYLES.map((style) => (
+              <button
+                key={style}
+                type="button"
+                className={`style-label${selectedStyles.includes(style) ? ' selected' : ''}`}
+                onClick={() => handleStyleToggle(style)}
+                aria-pressed={selectedStyles.includes(style)}
+              >
+                {style}
+              </button>
             ))}
-          </datalist>
-        </div>
-        {/* Date Input */}
-        <div className="date-input">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            aria-label="Date"
-          />
-        </div>
-        {/* Search Button */}
-        <button className="button search-button" onClick={handleSearch} type="button">
-          Search
-        </button>
-      </section>
+          </div>
+          {/* City Searchable Select */}
+          <div className="city-select">
+            <input
+              type="text"
+              placeholder="Type city..."
+              value={cityQuery}
+              onChange={(e) => setCityQuery(e.target.value)}
+              aria-label="City"
+              list="city-list"
+            />
+            <datalist id="city-list">
+              {filteredCities.map((city) => (
+                <option key={city} value={city} />
+              ))}
+            </datalist>
+          </div>
+          {/* Date Input */}
+          <div className="date-input">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              aria-label="Date"
+            />
+          </div>
+          {/* Search Button */}
+          <button className="button search-button" onClick={handleSearch} type="button">
+            Search
+          </button>
+        </section>
+      )}
       {/* Main content area */}
       <main className="main-content">
         {/* Events Container */}
-        <section className="events-container">
-          <h2 className="events-heading">Found Events</h2>
-          <div className="events-list">
-            {EVENTS.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
-          </div>
-        </section>
+        {activeView === 'find' && (
+          <section className="events-container">
+            <h2 className="events-heading">Found Events</h2>
+            <div className="events-list">
+              {EVENTS.map((event) => (
+                <EventCardWithSave key={event.id} event={event} />
+              ))}
+            </div>
+          </section>
+        )}
+        {activeView === 'saved' && (
+          <section className="events-container">
+            <h2 className="events-heading">Saved Events</h2>
+            <div className="events-list">
+              {savedEvents.length === 0 ? (
+                <div className="no-saved-events">No saved events yet.</div>
+              ) : (
+                savedEvents.map((event) => (
+                  <EventCardWithSave key={event.id} event={event} />
+                ))
+              )}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

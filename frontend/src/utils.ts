@@ -11,4 +11,21 @@ export function getOrCreateUserUuid(): string {
     localStorage.setItem('userUuid', uuid);
   }
   return uuid;
+}
+
+/**
+ * Get saved event IDs from localStorage.
+ * @returns {string[]} Array of saved event IDs.
+ */
+export function getSavedEventIds(): string[] {
+  const saved = localStorage.getItem('savedEvents');
+  return saved ? JSON.parse(saved) : [];
+}
+
+/**
+ * Save event IDs to localStorage.
+ * @param {string[]} ids - Array of event IDs to save.
+ */
+export function setSavedEventIds(ids: string[]) {
+  localStorage.setItem('savedEvents', JSON.stringify(ids));
 } 

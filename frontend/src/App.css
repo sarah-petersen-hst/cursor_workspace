@@ -67,6 +67,7 @@ body, .App {
   align-items: center;
   justify-content: center;
   background: #221112;
+  transition: height 0.3s cubic-bezier(0.4,0,0.2,1);
 }
 .header-image-container {
   width: 100%;
@@ -75,6 +76,7 @@ body, .App {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: height 0.3s cubic-bezier(0.4,0,0.2,1);
 }
 .header-image {
   width: 100vw;
@@ -85,6 +87,7 @@ body, .App {
   left: 0;
   top: 0;
   z-index: 1;
+  transition: height 0.3s cubic-bezier(0.4,0,0.2,1);
 }
 .header-headline {
   position: relative;
@@ -95,6 +98,7 @@ body, .App {
   width: 100%;
   margin: 0;
   text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  transition: font-size 0.3s cubic-bezier(0.4,0,0.2,1);
 }
 
 /* Main Content */
@@ -453,6 +457,27 @@ body, .App {
   background: #E92932;
   color: #fff;
   opacity: 1;
+}
+
+/* Saved button style */
+.event-save.saved {
+  background: #fff;
+  color: #E92932;
+  border: 2px solid #E92932;
+  font-weight: 700;
+}
+.event-save.saved:hover {
+  background: #E92932;
+  color: #fff;
+}
+
+/* No saved events message */
+.no-saved-events {
+  color: #fff;
+  font-size: 1.2rem;
+  text-align: center;
+  margin: 2rem 0;
+  opacity: 0.7;
 }
 
 @media (max-width: 900px) {
