@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import headerImage from './couple_small_LE_upscale_balanced_x4_2.png';
+import { getOrCreateUserUuid } from './utils';
 
 /**
  * List of available dance styles for filtering events.
@@ -138,37 +139,74 @@ const EVENTS: Event[] = [
 
 /**
  * EventCard component displays a single event summary and expandable details.
- * Adds a green status bar for likely real events (more 'exists' than 'notExists' votes in the last week).
+ * Fetches and submits votes to the backend, enforcing one vote per user per event per week.
+ * Highlights the button the user voted for this week.
  * @param {Event} event - The event to display.
  * @returns {JSX.Element}
  */
 function EventCard({ event }: { event: Event }) {
   const [expanded, setExpanded] = useState(false);
-  const details = EVENT_DETAILS[event.id];
+  const [voteData, setVoteData] = useState<{ exists: number; not_exists: number; highlight: 'green' | 'yellow'; week: string } | null>(null);
+  const [userVote, setUserVote] = useState<'exists' | 'not_exists' | null>(null);
+  const [loadingVotes, setLoadingVotes] = useState(false);
+  const [voteError, setVoteError] = useState<string | null>(null);
+  const userUuid = getOrCreateUserUuid();
+
   /**
-   * Handles toggling the details view.
+   * Fetch vote counts and the user's vote for this event from the backend.
    */
-  const handleToggleDetails = () => setExpanded((prev) => !prev);
-  /**
-   * Handles voting for event existence.
-   * @param type 'exists' or 'notExists'
-   */
-  const [votes, setVotes] = useState(details.votes);
-  const handleVote = (type: 'exists' | 'notExists') => {
-    setVotes((prev) => {
-      const newExists = type === 'exists' ? prev.exists + 1 : prev.exists;
-      const newNotExists = type === 'notExists' ? prev.notExists + 1 : prev.notExists;
-      const newHighlight = newExists > newNotExists ? 'green' : 'yellow';
-      return {
-        ...prev,
-        exists: newExists,
-        notExists: newNotExists,
-        highlight: newHighlight,
-      };
-    });
+  const fetchVotes = async () => {
+    setLoadingVotes(true);
+    setVoteError(null);
+    try {
+      const res = await fetch(`http://localhost:4000/api/votes/${event.id}?userUuid=${userUuid}`);
+      const data = await res.json();
+      // Use the most recent week with data
+      const weeks = Object.keys(data.weekVotes).sort().reverse();
+      let week = weeks[0];
+      if (!week && weeks.length > 0) week = weeks[0];
+      if (week) {
+        const exists = data.weekVotes[week].exists || 0;
+        const not_exists = data.weekVotes[week].not_exists || 0;
+        const highlight = exists > not_exists ? 'green' : 'yellow';
+        setVoteData({ exists, not_exists, highlight, week });
+      } else {
+        setVoteData({ exists: 0, not_exists: 0, highlight: 'yellow', week: '' });
+      }
+      setUserVote(data.userVote || null);
+    } catch (err) {
+      setVoteError('Failed to fetch votes');
+    } finally {
+      setLoadingVotes(false);
+    }
   };
+
+  /**
+   * Submit a vote to the backend and refresh vote counts.
+   */
+  const submitVote = async (voteType: 'exists' | 'not_exists') => {
+    setVoteError(null);
+    try {
+      await fetch('http://localhost:4000/api/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: event.id, userUuid, voteType }),
+      });
+      await fetchVotes();
+    } catch (err) {
+      setVoteError('Failed to submit vote');
+    }
+  };
+
+  // Fetch votes when details are expanded
+  useEffect(() => {
+    if (expanded) fetchVotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded]);
+
   // Determine if the event is likely real (green status bar)
-  const isLikelyReal = votes.highlight === 'green';
+  const isLikelyReal = voteData?.highlight === 'green';
+
   return (
     <div className={`event-card${isLikelyReal ? ' likely-real' : ''}`}>
       <div className="event-title-row">
@@ -180,16 +218,16 @@ function EventCard({ event }: { event: Event }) {
       <div className="event-source">Source: {event.source}</div>
       <div className="event-actions">
         <button className="button event-save">Save</button>
-        <button className="button event-details" onClick={handleToggleDetails} aria-expanded={expanded} aria-controls={`details-${event.id}`}>{expanded ? 'Hide Details' : 'Details'}</button>
+        <button className="button event-details" onClick={() => setExpanded((prev) => !prev)} aria-expanded={expanded} aria-controls={`details-${event.id}`}>{expanded ? 'Hide Details' : 'Details'}</button>
       </div>
-      {expanded && details && (
+      {expanded && (
         <div className="event-details-expanded" id={`details-${event.id}`}
           tabIndex={-1} aria-label={`Details for ${event.name}`}
         >
           {/* Workshops */}
           <div className="details-workshops">
             <h3>Workshops</h3>
-            {details.workshops.map((ws, idx) => (
+            {EVENT_DETAILS[event.id]?.workshops.map((ws, idx) => (
               <div className="workshop-row" key={idx}>
                 <span className="workshop-time">{ws.start} - {ws.end}</span>
                 <span className="workshop-style">{ws.style}</span>
@@ -201,12 +239,12 @@ function EventCard({ event }: { event: Event }) {
           <div className="details-party">
             <h3>Party</h3>
             <div className="party-time">
-              {details.party.end
-                ? `${details.party.start} - ${details.party.end}`
-                : `from ${details.party.start}`}
+              {EVENT_DETAILS[event.id]?.party.end
+                ? `${EVENT_DETAILS[event.id]?.party.start} - ${EVENT_DETAILS[event.id]?.party.end}`
+                : `from ${EVENT_DETAILS[event.id]?.party.start}`}
             </div>
             <div className="party-floors">
-              {details.party.floors.map((floor, idx) => (
+              {EVENT_DETAILS[event.id]?.party.floors.map((floor, idx) => (
                 <div className="party-floor" key={idx}>
                   <span className="floor-name">{floor.floor}:</span> {floor.distribution}
                 </div>
@@ -216,19 +254,48 @@ function EventCard({ event }: { event: Event }) {
           {/* Voting */}
           <div className="details-voting">
             <button
-              className={`button vote-exists${votes.highlight === 'green' ? ' highlight' : ''}`}
-              onClick={() => handleVote('exists')}
+              className={`button vote-exists${voteData?.highlight === 'green' ? ' highlight' : ''}${userVote === 'exists' ? ' your-vote' : ''}`}
+              onClick={() => submitVote('exists')}
               aria-label="This event really exists"
+              disabled={loadingVotes}
             >
-              This event really exists <span className="vote-count">{votes.exists}</span>
+              This event really exists <span className="vote-count">{voteData?.exists ?? 0}</span>
             </button>
             <button
-              className={`button vote-not-exists${votes.highlight === 'yellow' ? ' highlight' : ''}`}
-              onClick={() => handleVote('notExists')}
+              className={`button vote-not-exists${voteData?.highlight === 'yellow' ? ' highlight' : ''}${userVote === 'not_exists' ? ' your-vote' : ''}`}
+              onClick={() => submitVote('not_exists')}
               aria-label="This event doesn't exist"
+              disabled={loadingVotes}
             >
-              This event doesn't exist <span className="vote-count">{votes.notExists}</span>
+              This event doesn't exist <span className="vote-count">{voteData?.not_exists ?? 0}</span>
             </button>
+            {/* Withdraw Vote Button */}
+            {userVote && (
+              <button
+                className="button withdraw-vote"
+                onClick={async () => {
+                  setVoteError(null);
+                  setLoadingVotes(true);
+                  try {
+                    await fetch('http://localhost:4000/api/vote', {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ eventId: event.id, userUuid }),
+                    });
+                    await fetchVotes();
+                  } catch (err) {
+                    setVoteError('Failed to withdraw vote');
+                  } finally {
+                    setLoadingVotes(false);
+                  }
+                }}
+                aria-label="Withdraw your vote"
+                disabled={loadingVotes}
+              >
+                Withdraw Vote
+              </button>
+            )}
+            {voteError && <span className="vote-error">{voteError}</span>}
           </div>
         </div>
       )}

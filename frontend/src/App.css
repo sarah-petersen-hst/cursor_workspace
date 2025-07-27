@@ -431,6 +431,30 @@ body, .App {
   border-left: none;
 }
 
+/* Highlight the button the user voted for this week */
+.your-vote {
+  box-shadow: 0 0 0 3px #E92932, 0 2px 8px rgba(0,0,0,0.08);
+  border: 2px solid #E92932 !important;
+  font-weight: 900;
+  outline: none;
+}
+
+/* Withdraw Vote Button */
+.withdraw-vote {
+  background: #444;
+  color: #fff;
+  border: 2px solid #E92932;
+  margin-left: 1rem;
+  font-weight: 700;
+  opacity: 0.85;
+  transition: background 0.2s, color 0.2s;
+}
+.withdraw-vote:hover {
+  background: #E92932;
+  color: #fff;
+  opacity: 1;
+}
+
 @media (max-width: 900px) {
   .main-content, .filter-container {
     width: 95vw;
