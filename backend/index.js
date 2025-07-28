@@ -14,6 +14,7 @@ app.use(express.json());
 const pool = require('./db');
 const { v4: uuidv4 } = require('uuid');
 const { collectEvents } = require('./jobs/collectEvents');
+const { findEvents } = require('./models/event');
 
 /**
  * Health check endpoint
@@ -210,33 +211,13 @@ app.post('/api/events/search', async (req, res) => {
     return res.status(400).json({ error: 'City and date are required' });
   }
   try {
-    // TODO: Build query string for Google Search
-    // const query = ...;
-    // await collectEvents(query);
-    // TODO: Fetch results from DB
-    // For now, return placeholder
-    const events = [
-      {
-        id: '1',
-        name: 'Salsa Night Berlin',
-        date: '2024-05-18',
-        address: 'Alexanderplatz 1, 10178 Berlin',
-        source: 'SalsaBerlin.de',
-        trusted: true,
-        recurrence: 'every Tuesday',
-        venueType: 'Indoor',
-      },
-      {
-        id: '2',
-        name: 'Bachata Sensual Party',
-        date: '2024-05-20',
-        address: 'Kulturbrauerei, Schönhauser Allee 36, 10435 Berlin',
-        source: 'Facebook',
-        trusted: false,
-        recurrence: 'every second Friday',
-        venueType: 'Outdoor',
-      }
-    ];
+    // Build Google query
+    const weekday = new Date(date).toLocaleDateString('de-DE', { weekday: 'long' });
+    const query = `Salsa Veranstaltung ${weekday} ${city} site:.de`;
+    // Run the real scraping and extraction pipeline (finds and stores new events)
+    await collectEvents(query);
+    // Query the DB for all relevant events (existing + new)
+    const events = await findEvents(city, date, style);
     res.json({ events });
   } catch (err) {
     res.status(500).json({ error: 'Failed to collect events' });
