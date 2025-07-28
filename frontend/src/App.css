@@ -814,3 +814,25 @@ body, .App {
   font-size: 0.98rem;
   margin-top: 0.4rem;
 }
+
+.search-loading {
+  color: #fff;
+  font-size: 1.2rem;
+  text-align: center;
+  margin: 2rem 0 1rem 0;
+  opacity: 0.85;
+}
+.search-error {
+  color: #E92932;
+  font-size: 1.1rem;
+  text-align: center;
+  margin: 2rem 0 1rem 0;
+  font-weight: 700;
+}
+.no-events-found {
+  color: #fff;
+  font-size: 1.1rem;
+  text-align: center;
+  margin: 2rem 0 1rem 0;
+  opacity: 0.7;
+}

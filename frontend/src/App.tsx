@@ -494,6 +494,11 @@ function App() {
   const [cityLoading, setCityLoading] = useState(false);
   const [cityError, setCityError] = useState<string | null>(null);
 
+  // Add state for loading and error
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<Event[] | null>(null); // For future dynamic results
+
   // Debounced city search
   useEffect(() => {
     if (!cityQuery) {
@@ -566,14 +571,29 @@ function App() {
     setCityQuery(city);
   };
 
-  /**
-   * Handles the search button click (to be implemented).
-   * For now, just logs the selected filters.
-   */
-  const handleSearch = () => {
-    // Placeholder: log selected filters
-    // eslint-disable-next-line no-console
-    console.log({ selectedStyles, selectedCity, selectedDate });
+  // Update handleSearch to call backend
+  const handleSearch = async () => {
+    setSearchLoading(true);
+    setSearchError(null);
+    setSearchResults(null);
+    try {
+      const res = await fetch('http://localhost:4000/api/events/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          city: cityQuery,
+          date: selectedDate,
+          style: selectedStyles[0] || '', // For now, send first selected style or empty
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to fetch events');
+      const data = await res.json();
+      setSearchResults(data.events || []);
+    } catch (err) {
+      setSearchError('Failed to fetch events. Please try again.');
+    } finally {
+      setSearchLoading(false);
+    }
   };
 
   // Filter cities based on query
@@ -665,21 +685,30 @@ function App() {
             />
           </div>
           {/* Search Button */}
-          <button className="button search-button" onClick={handleSearch} type="button">
-            Search
+          <button className="button search-button" onClick={handleSearch} type="button" disabled={searchLoading}>
+            {searchLoading ? 'Searching...' : 'Search'}
           </button>
         </section>
       )}
       {/* Main content area */}
       <main className="main-content">
-        {/* Events Container */}
-        {activeView === 'find' && (
+        {searchLoading && (
+          <div className="search-loading">Searching for events...</div>
+        )}
+        {searchError && (
+          <div className="search-error">{searchError}</div>
+        )}
+        {searchResults && !searchLoading && !searchError && (
           <section className="events-container">
             <h2 className="events-heading">Found Events</h2>
             <div className="events-list">
-              {EVENTS.map((event) => (
-                <EventCardWithSave key={event.id} event={event} />
-              ))}
+              {searchResults.length === 0 ? (
+                <div className="no-events-found">No events found for your search.</div>
+              ) : (
+                searchResults.map((event) => (
+                  <EventCardWithSave key={event.id} event={event} />
+                ))
+              )}
             </div>
           </section>
         )}
