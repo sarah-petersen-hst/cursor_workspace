@@ -210,25 +210,69 @@ app.post('/api/events/search', async (req, res) => {
   if (!city || !date) {
     return res.status(400).json({ error: 'City and date are required' });
   }
+
+  // Set a timeout for the entire operation
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Search timeout - taking too long')), 30000); // 30 second timeout
+  });
+
   try {
+    console.log(`Starting search for: ${city}, ${date}, ${style}`);
+    
     // Build Google query
     const weekday = new Date(date).toLocaleDateString('de-DE', { weekday: 'long' });
     const query = `Salsa Veranstaltung ${weekday} ${city} site:.de`;
-    // Run the real scraping and extraction pipeline (finds and stores new events)
-    await collectEvents(query);
+    
+    // Run the scraping with timeout protection
+    const searchPromise = collectEvents(query);
+    
+    await Promise.race([searchPromise, timeoutPromise]);
+    console.log('Event collection completed, querying database...');
+    
     // Query the DB for all relevant events (existing + new)
     const events = await findEvents(city, date, style);
+    console.log(`Found ${events.length} events in database`);
+    
     res.json({ events });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to collect events' });
+    console.error('Error in /api/events/search:', err);
+    if (err && err.stack) console.error(err.stack);
+    
+    // If it's a timeout, still try to return existing events from DB
+    if (err.message.includes('timeout')) {
+      console.log('Search timed out, returning existing events from database...');
+      try {
+        const events = await findEvents(city, date, style);
+        res.json({ 
+          events, 
+          warning: 'Search timed out, showing existing events. New events may be added in background.' 
+        });
+        return;
+      } catch (dbErr) {
+        console.error('Database query also failed:', dbErr);
+      }
+    }
+    
+    res.status(500).json({ error: 'Failed to collect events', details: err.message || err });
   }
 });
+
+// German cities list for autocomplete
+const GERMAN_CITIES = [
+  'Berlin', 'Hamburg', 'München', 'Köln', 'Frankfurt am Main', 'Stuttgart', 
+  'Düsseldorf', 'Dortmund', 'Essen', 'Leipzig', 'Bremen', 'Dresden', 
+  'Hannover', 'Nürnberg', 'Duisburg', 'Bochum', 'Wuppertal', 'Bielefeld',
+  'Bonn', 'Münster', 'Karlsruhe', 'Mannheim', 'Augsburg', 'Wiesbaden',
+  'Gelsenkirchen', 'Mönchengladbach', 'Braunschweig', 'Chemnitz', 'Kiel',
+  'Aachen', 'Halle', 'Magdeburg', 'Freiburg', 'Krefeld', 'Lübeck',
+  'Oberhausen', 'Erfurt', 'Mainz', 'Rostock', 'Kassel', 'Hagen', 'Potsdam'
+];
 
 /**
  * GET /api/cities?query=...
  * Returns a list of city names matching the query. Safe from SQL injection.
  */
-app.get('/api/cities', async (req, res) => {
+app.get('/api/cities', (req, res) => {
   const { query } = req.query;
   if (typeof query !== 'string' || query.length > 100) {
     return res.status(400).json({ error: 'Invalid city query' });
@@ -237,15 +281,13 @@ app.get('/api/cities', async (req, res) => {
   if (!/^[a-zA-ZäöüÄÖÜß \-]*$/.test(query)) {
     return res.status(400).json({ error: 'Invalid characters in city query' });
   }
-  try {
-    const result = await pool.query(
-      'SELECT name FROM cities WHERE name ILIKE $1 LIMIT 10',
-      [`%${query}%`]
-    );
-    res.json(result.rows.map(row => row.name));
-  } catch (err) {
-    res.status(500).json({ error: 'Database error' });
-  }
+  
+  // Filter cities based on query
+  const filteredCities = GERMAN_CITIES.filter(city => 
+    city.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 10);
+  
+  res.json(filteredCities);
 });
 
 app.listen(PORT, () => {

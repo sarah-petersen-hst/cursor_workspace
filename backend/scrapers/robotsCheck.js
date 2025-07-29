@@ -16,8 +16,8 @@ async function isAllowedByRobots(targetUrl) {
     const robots = await robotsParser(robotsUrl);
     return robots.isAllowed(targetUrl, 'TanzpartyBot/1.0');
   } catch (err) {
-    // If robots.txt cannot be fetched, default to disallow
-    return false;
+    // If robots.txt cannot be fetched (404, network error), default to allow
+    return true;
   }
 }
 

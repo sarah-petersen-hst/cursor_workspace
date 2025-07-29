@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import './App.css';
 import headerImage from './couple_small_LE_upscale_balanced_x4_2.png';
 import { getOrCreateUserUuid, getSavedEventIds, setSavedEventIds } from './utils';
@@ -40,6 +40,18 @@ const CITIES = [
  */
 type VenueType = 'Indoor' | 'Outdoor' | 'Not specified';
 
+type Workshop = {
+  start: string;
+  end: string;
+  style: string;
+  level: 'Beginner' | 'Advanced' | 'Open Level';
+};
+
+type FloorMusic = {
+  floor: string;
+  distribution: string;
+};
+
 type Event = {
   id: string;
   name: string;
@@ -49,25 +61,15 @@ type Event = {
   trusted: boolean;
   recurrence?: string; // e.g., 'every Tuesday', 'every second Friday', etc.
   venueType?: VenueType;
+  workshops?: Workshop[];
+  party?: {
+    start: string;
+    end?: string;
+    floors: FloorMusic[];
+  };
 };
 
-/**
- * Type definition for a workshop.
- */
-type Workshop = {
-  start: string;
-  end: string;
-  style: string;
-  level: 'Beginner' | 'Advanced' | 'Open Level';
-};
 
-/**
- * Type definition for party floor music distribution.
- */
-type FloorMusic = {
-  floor: string;
-  distribution: string;
-};
 
 /**
  * Type definition for event details.
@@ -119,50 +121,7 @@ const EVENT_DETAILS: Record<string, EventDetails> = {
   },
 };
 
-/**
- * Placeholder events for demonstration.
- */
-const EVENTS: Event[] = [
-  {
-    id: '1',
-    name: 'Salsa Night Berlin',
-    date: '2024-05-18',
-    address: 'Alexanderplatz 1, 10178 Berlin',
-    source: 'SalsaBerlin.de',
-    trusted: true,
-    recurrence: 'every Tuesday',
-    venueType: 'Indoor',
-  },
-  {
-    id: '2',
-    name: 'Bachata Sensual Party',
-    date: '2024-05-20',
-    address: 'Kulturbrauerei, Schönhauser Allee 36, 10435 Berlin',
-    source: 'Facebook',
-    trusted: false,
-    recurrence: 'every second Friday',
-    venueType: 'Outdoor',
-  },
-  {
-    id: '3',
-    name: 'Zouk Open Air',
-    date: '2024-05-25',
-    address: 'Tempelhofer Feld, Berlin',
-    source: 'ZoukBerlin.de',
-    trusted: false,
-    venueType: 'Outdoor',
-  },
-  {
-    id: '4',
-    name: 'Monthly Salsa Social',
-    date: '2024-06-01',
-    address: 'Salsa Club, Berlin',
-    source: 'Meetup',
-    trusted: false,
-    recurrence: 'every 1st Saturday of the month',
-    venueType: 'Not specified',
-  },
-];
+
 
 /**
  * EventCard component displays a single event summary and expandable details.
@@ -183,9 +142,10 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
   const [venueVoteData, setVenueVoteData] = useState<{ indoor: number; outdoor: number; userVote: 'indoor' | 'outdoor' | null }>({ indoor: 0, outdoor: 0, userVote: null });
   const [venueVoteLoading, setVenueVoteLoading] = useState(false);
   const [venueVoteError, setVenueVoteError] = useState<string | null>(null);
+  const [submittingVote, setSubmittingVote] = useState(false);
+  const [submittingVenueVote, setSubmittingVenueVote] = useState(false);
 
-  // Find the event in EVENTS to get recurrence and venueType
-  const eventMeta = EVENTS.find(e => e.id === event.id);
+  // Use the event data directly (it now includes all necessary fields from the transformation layer)
 
   /**
    * Fetch vote counts and the user's vote for this event from the backend.
@@ -220,6 +180,8 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
    * Submit a vote to the backend and refresh vote counts.
    */
   const submitVote = async (voteType: 'exists' | 'not_exists') => {
+    if (submittingVote) return;
+    setSubmittingVote(true);
     setVoteError(null);
     try {
       await fetch('http://localhost:4000/api/vote', {
@@ -230,6 +192,29 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
       await fetchVotes();
     } catch (err) {
       setVoteError('Failed to submit vote');
+    } finally {
+      setSubmittingVote(false);
+    }
+  };
+
+  /**
+   * Withdraw the user's vote for this event.
+   */
+  const withdrawVote = async () => {
+    if (submittingVote) return;
+    setSubmittingVote(true);
+    setVoteError(null);
+    try {
+      await fetch('http://localhost:4000/api/vote', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: event.id, userUuid }),
+      });
+      await fetchVotes();
+    } catch (err) {
+      setVoteError('Failed to withdraw vote');
+    } finally {
+      setSubmittingVote(false);
     }
   };
 
@@ -254,8 +239,9 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
 
   // Submit venue vote
   const submitVenueVote = async (voteType: 'indoor' | 'outdoor') => {
+    if (submittingVenueVote) return;
+    setSubmittingVenueVote(true);
     setVenueVoteError(null);
-    setVenueVoteLoading(true);
     try {
       await fetch('http://localhost:4000/api/venue-vote', {
         method: 'POST',
@@ -266,14 +252,15 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
     } catch (err) {
       setVenueVoteError('Failed to submit venue vote');
     } finally {
-      setVenueVoteLoading(false);
+      setSubmittingVenueVote(false);
     }
   };
 
   // Withdraw venue vote
   const withdrawVenueVote = async () => {
+    if (submittingVenueVote) return;
+    setSubmittingVenueVote(true);
     setVenueVoteError(null);
-    setVenueVoteLoading(true);
     try {
       await fetch('http://localhost:4000/api/venue-vote', {
         method: 'DELETE',
@@ -284,7 +271,7 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
     } catch (err) {
       setVenueVoteError('Failed to withdraw venue vote');
     } finally {
-      setVenueVoteLoading(false);
+      setSubmittingVenueVote(false);
     }
   };
 
@@ -296,9 +283,10 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
 
   // Fetch venue votes when details are expanded and venueType is Not specified
   useEffect(() => {
-    if (expanded && eventMeta?.venueType === 'Not specified') fetchVenueVotes();
+    console.log('Expanded state changed:', expanded, 'for event:', event.id);
+    if (expanded && event.venueType === 'Not specified') fetchVenueVotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, eventMeta?.venueType]);
+  }, [expanded, event.venueType]);
 
   // Determine if the event is likely real (green status bar)
   const isLikelyReal = voteData?.highlight === 'green';
@@ -322,151 +310,179 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
             {isSaved ? 'Unsave' : 'Save'}
           </button>
         )}
-        <button className="button event-details" onClick={() => setExpanded((prev) => !prev)} aria-expanded={expanded} aria-controls={`details-${event.id}`}>{expanded ? 'Hide Details' : 'Details'}</button>
+        <button className="button event-details" onClick={() => {
+          console.log('🔘 Details button clicked for event:', event.id, 'current expanded:', expanded);
+          console.log('🔍 Event data structure:', {
+            id: event.id,
+            name: event.name,
+            venueType: event.venueType,
+            workshops: event.workshops,
+            party: event.party,
+            recurrence: event.recurrence
+          });
+          setExpanded((prev) => {
+            console.log('🔄 Setting expanded from', prev, 'to', !prev, 'for event:', event.id);
+            const newExpanded = !prev;
+            console.log('✅ New expanded state will be:', newExpanded);
+            return newExpanded;
+          });
+        }} aria-expanded={expanded} aria-controls={`details-${event.id}`}>{expanded ? 'Hide Details' : 'Details'}</button>
       </div>
-      {expanded && (
-        <div className="event-details-expanded" id={`details-${event.id}`}
-          tabIndex={-1} aria-label={`Details for ${event.name}`}
-        >
-          {/* Event Meta */}
-          <div className="event-meta">
-            {/* Recurrence info */}
-            {eventMeta?.recurrence && (
-              <div className="event-recurrence-pretty">
-                <span className="recurrence-icon">
-                  {/* Repeat SVG icon */}
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#E92932"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.3-.42 2.5-1.13 3.47l1.46 1.46C19.07 15.07 20 13.13 20 11c0-4.42-3.58-8-8-8zm-6.36 2.05l1.41 1.41C5.07 8.93 4 10.87 4 13c0 4.42 3.58 8 8 8v3l4-4-4-4v3c-3.31 0-6-2.69-6-6 0-1.3.42-2.5 1.13-3.47z"/></svg>
-                </span>
-                <span className="recurrence-text">
-                  <span className="recurrence-label">Repeats:</span> <b>{eventMeta.recurrence}</b>
-                </span>
-              </div>
-            )}
-            {/* Venue type */}
-            <div className={`event-venue-type venue-${(eventMeta?.venueType || 'not-specified').toLowerCase().replace(/ /g, '-')}`}>Venue: {eventMeta?.venueType || 'Not specified'}</div>
-            {/* Weather warning for outdoor venues */}
-            {eventMeta?.venueType === 'Outdoor' && (
-              <div className="event-weather-warning-pretty">
-                <span className="weather-icon">
-                  {/* Warning SVG icon */}
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
-                </span>
-                <span>
-                  <b>Weather Warning:</b> This event takes place outdoors and may be weather-dependent.
-                </span>
-              </div>
-            )}
-          </div>
-          {/* Workshops */}
-          <div className="details-workshops">
-            <h3>Workshops</h3>
-            {EVENT_DETAILS[event.id]?.workshops.map((ws, idx) => (
-              <div className="workshop-row" key={idx}>
-                <span className="workshop-time">{ws.start} - {ws.end}</span>
-                <span className="workshop-style">{ws.style}</span>
-                <span className="workshop-level">{ws.level}</span>
-              </div>
-            ))}
-          </div>
-          {/* Party Details */}
-          <div className="details-party">
-            <h3>Party</h3>
-            <div className="party-time">
-              {EVENT_DETAILS[event.id]?.party.end
-                ? `${EVENT_DETAILS[event.id]?.party.start} - ${EVENT_DETAILS[event.id]?.party.end}`
-                : `from ${EVENT_DETAILS[event.id]?.party.start}`}
-            </div>
-            <div className="party-floors">
-              {EVENT_DETAILS[event.id]?.party.floors.map((floor, idx) => (
-                <div className="party-floor" key={idx}>
-                  <span className="floor-name">{floor.floor}:</span> {floor.distribution}
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Voting */}
-          <div className="details-voting">
-            <button
-              className={`button vote-exists${voteData?.highlight === 'green' ? ' highlight' : ''}${userVote === 'exists' ? ' your-vote' : ''}`}
-              onClick={() => submitVote('exists')}
-              aria-label="This event really exists"
-              disabled={loadingVotes}
-            >
-              This event really exists <span className="vote-count">{voteData?.exists ?? 0}</span>
-            </button>
-            <button
-              className={`button vote-not-exists${voteData?.highlight === 'yellow' ? ' highlight' : ''}${userVote === 'not_exists' ? ' your-vote' : ''}`}
-              onClick={() => submitVote('not_exists')}
-              aria-label="This event doesn't exist"
-              disabled={loadingVotes}
-            >
-              This event doesn't exist <span className="vote-count">{voteData?.not_exists ?? 0}</span>
-            </button>
-            {/* Withdraw Vote Button */}
-            {userVote && (
-              <button
-                className="button withdraw-vote"
-                onClick={async () => {
-                  setVoteError(null);
-                  setLoadingVotes(true);
-                  try {
-                    await fetch('http://localhost:4000/api/vote', {
-                      method: 'DELETE',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ eventId: event.id, userUuid }),
-                    });
-                    await fetchVotes();
-                  } catch (err) {
-                    setVoteError('Failed to withdraw vote');
-                  } finally {
-                    setLoadingVotes(false);
-                  }
-                }}
-                aria-label="Withdraw your vote"
-                disabled={loadingVotes}
-              >
-                Withdraw Vote
-              </button>
-            )}
-            {voteError && <span className="vote-error">{voteError}</span>}
-          </div>
-          {eventMeta?.venueType === 'Not specified' && (
-            <div className="venue-voting-ui">
-              <div className="venue-voting-label">What type of venue is this?</div>
-              <div className="venue-voting-buttons">
-                <button
-                  className={`venue-vote-btn${venueVoteData.userVote === 'indoor' ? ' your-vote' : ''}`}
-                  onClick={() => submitVenueVote('indoor')}
-                  disabled={venueVoteLoading}
-                  aria-label="Vote for Indoor"
-                >
-                  <span className="venue-vote-icon">
-                    {/* House SVG */}
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="#1e4d2b"><path d="M12 3l10 9h-3v9h-6v-6h-2v6H5v-9H2z"/></svg>
-                  </span>
-                  Indoor <span className="venue-vote-count">{venueVoteData.indoor}</span>
-                </button>
-                <button
-                  className={`venue-vote-btn${venueVoteData.userVote === 'outdoor' ? ' your-vote' : ''}`}
-                  onClick={() => submitVenueVote('outdoor')}
-                  disabled={venueVoteLoading}
-                  aria-label="Vote for Outdoor"
-                >
-                  <span className="venue-vote-icon">
-                    {/* Tree SVG */}
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="#388e3c"><path d="M12 2C10.34 2 9 3.34 9 5c0 .88.39 1.67 1 2.22V9H7.41c-.89 0-1.34 1.08-.71 1.71l2.29 2.29H7c-.89 0-1.34 1.08-.71 1.71l4 4c.39.39 1.02.39 1.41 0l4-4c.63-.63.18-1.71-.71-1.71h-1.99l2.29-2.29c.63-.63.18-1.71-.71-1.71H14V7.22c.61-.55 1-1.34 1-2.22 0-1.66-1.34-3-3-3z"/></svg>
-                  </span>
-                  Outdoor <span className="venue-vote-count">{venueVoteData.outdoor}</span>
-                </button>
-                {venueVoteData.userVote && (
-                  <button className="venue-vote-btn withdraw" onClick={withdrawVenueVote} disabled={venueVoteLoading} aria-label="Withdraw venue vote">Withdraw Vote</button>
-                )}
-              </div>
-              {venueVoteError && <div className="venue-vote-error">{venueVoteError}</div>}
-            </div>
-          )}
-        </div>
-      )}
+             {expanded && (
+         <div className="event-details-expanded" id={`details-${event.id}`}
+           tabIndex={-1} aria-label={`Details for ${event.name}`}
+         >
+           {/* Event Metadata */}
+           <div className="event-meta">
+             {event.recurrence && (
+               <div className="event-recurrence-pretty">
+                 <span className="recurrence-icon">🔄</span>
+                 <span className="recurrence-label">Recurring:</span>
+                 <span className="recurrence-value">{event.recurrence}</span>
+               </div>
+             )}
+             
+             <div className={`event-venue-type ${event.venueType === 'Indoor' ? 'venue-indoor' : event.venueType === 'Outdoor' ? 'venue-outdoor' : 'venue-not-specified'}`}>
+               <span className="venue-icon">
+                 {event.venueType === 'Indoor' ? '🏠' : event.venueType === 'Outdoor' ? '🌤️' : '❓'}
+               </span>
+               Venue: {event.venueType}
+             </div>
+
+             {event.venueType === 'Outdoor' && (
+               <div className="weather-warning">
+                 <span className="weather-icon">⚠️</span>
+                 <span className="weather-text">Note: This event takes place outdoors and may be weather-dependent.</span>
+               </div>
+             )}
+           </div>
+
+           {/* Workshops Section */}
+           {event.workshops && event.workshops.length > 0 && (
+             <div className="details-workshops">
+               <h3>Workshops</h3>
+               <div className="workshops-container">
+                 {event.workshops.map((workshop, index) => (
+                   <div key={index} className="workshop-item">
+                     <div className="workshop-time">{workshop.start} - {workshop.end}</div>
+                     <div className="workshop-style">{workshop.style}</div>
+                     <div className="workshop-level">{workshop.level}</div>
+                   </div>
+                 ))}
+               </div>
+             </div>
+           )}
+
+           {/* Party Section */}
+           {event.party && (
+             <div className="details-party">
+               <h3>Party</h3>
+               <div className="party-info">
+                 <div className="party-time">
+                   <span className="party-label">Start:</span> {event.party.start}
+                   {event.party.end ? (
+                     <span> - <span className="party-label">End:</span> {event.party.end}</span>
+                   ) : (
+                     <span> (from {event.party.start})</span>
+                   )}
+                 </div>
+                 
+                 {event.party.floors && event.party.floors.length > 0 && (
+                   <div className="party-floors">
+                     <div className="floors-label">Floor Music:</div>
+                     {event.party.floors.map((floor, index) => (
+                       <div key={index} className="party-floor">
+                         <span className="floor-name">{floor.floor}:</span>
+                         <span className="floor-distribution">{floor.distribution}</span>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+               </div>
+             </div>
+           )}
+
+           {/* Voting Section */}
+           <div className="details-voting">
+             <div className="voting-header">Event Verification</div>
+             {loadingVotes ? (
+               <div className="voting-loading">Loading votes...</div>
+             ) : voteError ? (
+               <div className="voting-error">Error: {voteError}</div>
+             ) : voteData ? (
+               <div className="voting-buttons">
+                 <button
+                   className={`button vote-exists${userVote === 'exists' ? ' your-vote' : ''}${voteData.highlight === 'green' ? ' highlight' : ''}`}
+                   onClick={() => submitVote('exists')}
+                   disabled={submittingVote}
+                 >
+                   This event really exists
+                   <span className="vote-count">{voteData.exists}</span>
+                 </button>
+                 <button
+                   className={`button vote-not-exists${userVote === 'not_exists' ? ' your-vote' : ''}${voteData.highlight === 'yellow' ? ' highlight' : ''}`}
+                   onClick={() => submitVote('not_exists')}
+                   disabled={submittingVote}
+                 >
+                   This event doesn't exist
+                   <span className="vote-count">{voteData.not_exists}</span>
+                 </button>
+                 {userVote && (
+                   <button
+                     className="button withdraw-vote"
+                     onClick={withdrawVote}
+                     disabled={submittingVote}
+                   >
+                     Withdraw Vote
+                   </button>
+                 )}
+               </div>
+             ) : null}
+           </div>
+
+           {/* Venue Voting - only show if venue type is "Not specified" */}
+           {event.venueType === 'Not specified' && (
+             <div className="venue-voting-section">
+               <div className="venue-voting-header">Help us determine the venue type:</div>
+               {venueVoteLoading ? (
+                 <div className="venue-voting-loading">Loading venue votes...</div>
+               ) : venueVoteError ? (
+                 <div className="venue-voting-error">Error: {venueVoteError}</div>
+               ) : (
+                 <div className="venue-voting-buttons">
+                   <button
+                     className={`venue-vote-btn${venueVoteData.userVote === 'indoor' ? ' your-vote' : ''}`}
+                     onClick={() => submitVenueVote('indoor')}
+                     disabled={submittingVenueVote}
+                   >
+                     <span className="venue-vote-icon">🏠</span>
+                     Indoor
+                     <span className="venue-vote-count">{venueVoteData.indoor}</span>
+                   </button>
+                   <button
+                     className={`venue-vote-btn${venueVoteData.userVote === 'outdoor' ? ' your-vote' : ''}`}
+                     onClick={() => submitVenueVote('outdoor')}
+                     disabled={submittingVenueVote}
+                   >
+                     <span className="venue-vote-icon">🌤️</span>
+                     Outdoor
+                     <span className="venue-vote-count">{venueVoteData.outdoor}</span>
+                   </button>
+                   {venueVoteData.userVote && (
+                     <button
+                       className="venue-vote-btn withdraw"
+                       onClick={withdrawVenueVote}
+                       disabled={submittingVenueVote}
+                     >
+                       Withdraw Vote
+                     </button>
+                   )}
+                 </div>
+               )}
+             </div>
+           )}
+         </div>
+       )}
     </div>
   );
 }
@@ -498,6 +514,12 @@ function App() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<Event[] | null>(null); // For future dynamic results
+  
+  // Load initial events when component mounts
+  useEffect(() => {
+    console.log('🚀 App mounted, triggering initial search...');
+    handleSearch();
+  }, []); // Run once on mount
 
   // Debounced city search
   useEffect(() => {
@@ -546,7 +568,8 @@ function App() {
       const newHeight = Math.max(minHeight, maxHeight - scrollY);
       setHeaderHeight(newHeight);
     };
-    window.addEventListener('scroll', onScroll);
+    
+    window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
@@ -573,23 +596,32 @@ function App() {
 
   // Update handleSearch to call backend
   const handleSearch = async () => {
+    console.log('🔍 HandleSearch called with:', { cityQuery, selectedDate, selectedStyles });
     setSearchLoading(true);
     setSearchError(null);
     setSearchResults(null);
     try {
+      const searchPayload = {
+        city: cityQuery,
+        date: selectedDate,
+        style: selectedStyles[0] || '', // For now, send first selected style or empty
+      };
+      console.log('📤 Sending search request:', searchPayload);
+      
       const res = await fetch('http://localhost:4000/api/events/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          city: cityQuery,
-          date: selectedDate,
-          style: selectedStyles[0] || '', // For now, send first selected style or empty
-        }),
+        body: JSON.stringify(searchPayload),
       });
+      
+      console.log('📥 Search response status:', res.status);
       if (!res.ok) throw new Error('Failed to fetch events');
+      
       const data = await res.json();
+      console.log('📊 Search results:', data);
       setSearchResults(data.events || []);
     } catch (err) {
+      console.error('❌ Search error:', err);
       setSearchError('Failed to fetch events. Please try again.');
     } finally {
       setSearchLoading(false);
@@ -603,8 +635,11 @@ function App() {
       )
     : CITIES;
 
-  // Get saved events
-  const savedEvents = EVENTS.filter((e) => savedEventIds.includes(e.id));
+  // Get saved events from search results (memoized to prevent unnecessary re-renders)
+  const savedEvents = useMemo(() => {
+    console.log('🔄 Recalculating savedEvents. SearchResults:', searchResults?.length || 0, 'SavedEventIds:', savedEventIds);
+    return (searchResults || []).filter((e) => savedEventIds.includes(e.id));
+  }, [searchResults, savedEventIds]);
 
   // EventCard with save/unsave logic
   function EventCardWithSave(props: { event: Event }) {
@@ -702,12 +737,15 @@ function App() {
           <section className="events-container">
             <h2 className="events-heading">Found Events</h2>
             <div className="events-list">
-              {searchResults.length === 0 ? (
-                <div className="no-events-found">No events found for your search.</div>
+              {!searchResults || searchResults.length === 0 ? (
+                <div className="no-events-found">
+                  {searchResults === null ? 'Loading events...' : 'No events found for your search.'}
+                </div>
               ) : (
-                searchResults.map((event) => (
-                  <EventCardWithSave key={event.id} event={event} />
-                ))
+                searchResults.map((event) => {
+                  console.log('🎯 Rendering event:', event.id, event.name);
+                  return <EventCardWithSave key={event.id} event={event} />;
+                })
               )}
             </div>
           </section>

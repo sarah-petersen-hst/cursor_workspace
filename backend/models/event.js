@@ -2,6 +2,86 @@
 const pool = require('../db');
 
 /**
+ * Transform database event to frontend format
+ * @param {object} dbEvent - Raw database event
+ * @returns {object} - Frontend-compatible event
+ */
+function transformEventForFrontend(dbEvent) {
+  return {
+    id: dbEvent.id.toString(), // Convert number to string
+    name: dbEvent.name,
+    date: dbEvent.date ? new Date(dbEvent.date).toISOString().split('T')[0] : '', // Convert ISO to YYYY-MM-DD
+    address: dbEvent.address || '',
+    source: dbEvent.source_url || '', // source_url → source
+    trusted: isEventTrusted(dbEvent.source_url), // Determine if source is trusted
+    recurrence: dbEvent.recurrence || null,
+    venueType: dbEvent.venue_type || 'Not specified', // venue_type → venueType
+    // Add event details if they exist
+    workshops: Array.isArray(dbEvent.workshops) ? transformWorkshops(dbEvent.workshops) : [],
+    party: dbEvent.party && typeof dbEvent.party === 'object' ? transformParty(dbEvent.party) : null
+  };
+}
+
+/**
+ * Determine if an event source is trusted based on URL
+ * @param {string} sourceUrl 
+ * @returns {boolean}
+ */
+function isEventTrusted(sourceUrl) {
+  if (!sourceUrl) return false;
+  
+  // Define trusted domains
+  const trustedDomains = [
+    'salsaberlin.de',
+    'salsa-und-tango.de',
+    'salsalemania.de',
+    'tanzschule.de',
+    'eventbrite.de'
+  ];
+  
+  try {
+    const url = new URL(sourceUrl);
+    return trustedDomains.some(domain => url.hostname.includes(domain));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Transform database workshops to frontend format
+ * @param {array} workshops 
+ * @returns {array}
+ */
+function transformWorkshops(workshops) {
+  if (!Array.isArray(workshops)) return [];
+  
+  return workshops.map(ws => ({
+    start: ws.startTime || ws.start || '',
+    end: ws.endTime || ws.end || '',
+    style: ws.style || '',
+    level: ws.level || 'Open Level'
+  }));
+}
+
+/**
+ * Transform database party to frontend format
+ * @param {object} party 
+ * @returns {object}
+ */
+function transformParty(party) {
+  if (!party || typeof party !== 'object') return null;
+  
+  return {
+    start: party.startTime || party.start || '',
+    end: party.endTime || party.end || undefined,
+    floors: Array.isArray(party.floors) ? party.floors.map(floor => ({
+      floor: floor.floor || floor.name || 'Main Floor',
+      distribution: floor.distribution || floor.music || ''
+    })) : []
+  };
+}
+
+/**
  * Check if a URL has been processed in the last 3 days.
  * @param {string} url
  * @returns {Promise<boolean>}
@@ -49,7 +129,7 @@ async function saveEventIfUnique(event) {
  * @param {string} city
  * @param {string} date
  * @param {string} style
- * @returns {Promise<object[]>}
+ * @returns {Promise<object[]>} - Frontend-compatible events
  */
 async function findEvents(city, date, style) {
   let query = `SELECT * FROM events WHERE 1=1`;
@@ -68,7 +148,9 @@ async function findEvents(city, date, style) {
   }
   query += ` ORDER BY date ASC, name ASC`;
   const result = await pool.query(query, params);
-  return result.rows;
+  
+  // Transform all events to frontend format
+  return result.rows.map(transformEventForFrontend);
 }
 
 module.exports = { isUrlRecent, isDuplicateEvent, saveEventIfUnique, findEvents }; 

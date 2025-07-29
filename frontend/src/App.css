@@ -129,8 +129,8 @@ body, .App {
 /* Filter/Search Container */
 .filter-container {
   position: relative;
-  top: -60px; /* Overlap header */
-  margin: 0 auto 2rem auto;
+  top: -40px; /* Reduced overlap to prevent layout issues */
+  margin: 0 auto 1rem auto; /* Reduced bottom margin to compensate */
   width: 75vw;
   background: #2d1818;
   border-radius: 24px;
@@ -267,6 +267,11 @@ body, .App {
   gap: 0.5rem;
   border-left: 6px solid #E92932;
   position: relative;
+  z-index: 1;
+  /* Ensure event details can expand without clipping */
+  overflow: visible;
+  /* Prevent layout shifts */
+  contain: layout style;
 }
 .event-title-row {
   display: flex;
@@ -325,6 +330,13 @@ body, .App {
   gap: 2rem;
   font-family: 'Poppins', sans-serif;
   color: #fff;
+  position: relative;
+  z-index: 5;
+  width: 100%;
+  box-sizing: border-box;
+  /* Prevent layout shifts during header transitions */
+  will-change: auto;
+  contain: layout style;
 }
 .details-workshops, .details-party {
   background: #221112;
@@ -458,6 +470,258 @@ body, .App {
   background: #E92932;
   color: #fff;
   opacity: 1;
+}
+
+/* Event Metadata Styles */
+.event-meta {
+  margin-bottom: 1.5rem;
+}
+
+.event-recurrence-pretty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 1rem;
+  background-color: rgba(233, 41, 50, 0.1);
+  border-radius: 20px;
+  border: 1px solid rgba(233, 41, 50, 0.3);
+}
+
+.recurrence-icon {
+  font-size: 1.1rem;
+}
+
+.recurrence-label {
+  font-weight: 600;
+  color: #E92932;
+}
+
+.recurrence-value {
+  color: #fff;
+}
+
+.event-venue-type {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.venue-indoor {
+  background-color: rgba(76, 175, 80, 0.2);
+  border: 1px solid rgba(76, 175, 80, 0.4);
+  color: #4CAF50;
+}
+
+.venue-outdoor {
+  background-color: rgba(255, 193, 7, 0.2);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  color: #FFC107;
+}
+
+.venue-not-specified {
+  background-color: rgba(158, 158, 158, 0.2);
+  border: 1px solid rgba(158, 158, 158, 0.4);
+  color: #9E9E9E;
+}
+
+.venue-icon {
+  font-size: 1.1rem;
+}
+
+.weather-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(255, 152, 0, 0.15);
+  border: 1px solid rgba(255, 152, 0, 0.4);
+  border-radius: 8px;
+  color: #FF9800;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.weather-icon {
+  font-size: 1.2rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Updated Workshop Styles */
+.workshops-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.workshop-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  border-left: 3px solid #E92932;
+}
+
+.workshop-time {
+  font-weight: 600;
+  color: #E92932;
+  white-space: nowrap;
+}
+
+.workshop-style {
+  color: #fff;
+  font-weight: 500;
+}
+
+.workshop-level {
+  background-color: rgba(233, 41, 50, 0.2);
+  color: #E92932;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Updated Party Styles */
+.party-info {
+  padding: 1rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  border-left: 3px solid #E92932;
+}
+
+.party-label {
+  font-weight: 600;
+  color: #E92932;
+}
+
+.floors-label {
+  font-weight: 600;
+  color: #E92932;
+  margin-bottom: 0.5rem;
+}
+
+.floor-distribution {
+  color: #fff;
+}
+
+/* Voting Section Updates */
+.voting-header {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #E92932;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.voting-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.voting-loading, .voting-error {
+  text-align: center;
+  padding: 1rem;
+}
+
+.voting-error {
+  color: #E92932;
+}
+
+/* Venue Voting Section */
+.venue-voting-section {
+  padding: 1.5rem;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 1rem;
+}
+
+.venue-voting-header {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #E92932;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.venue-voting-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.venue-vote-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 25px;
+  color: #fff;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.venue-vote-btn:hover {
+  background-color: rgba(233, 41, 50, 0.2);
+  border-color: #E92932;
+}
+
+.venue-vote-btn.your-vote {
+  background-color: rgba(233, 41, 50, 0.3);
+  border-color: #E92932;
+  box-shadow: 0 0 10px rgba(233, 41, 50, 0.3);
+}
+
+.venue-vote-btn.withdraw {
+  background-color: transparent;
+  border-color: #666;
+  color: #666;
+}
+
+.venue-vote-btn.withdraw:hover {
+  border-color: #E92932;
+  color: #E92932;
+}
+
+.venue-vote-icon {
+  font-size: 1.1rem;
+}
+
+.venue-vote-count {
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 0.2rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.venue-voting-loading, .venue-voting-error {
+  text-align: center;
+  padding: 1rem;
+}
+
+.venue-voting-error {
+  color: #E92932;
 }
 
 /* Saved button style */
