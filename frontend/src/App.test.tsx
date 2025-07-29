@@ -83,7 +83,7 @@ describe('Navigation and Saved Events', () => {
   });
 
   it('can save and unsave events and see them in Saved Events', () => {
-    render(<App />);
+  render(<App />);
     // Save the first event
     const saveButtons = screen.getAllByLabelText(/Save event|Unsave event/);
     fireEvent.click(saveButtons[0]);

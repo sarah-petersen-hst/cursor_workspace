@@ -59,6 +59,7 @@ type Event = {
   address: string;
   source: string;
   trusted: boolean;
+  styles?: string[]; // Array of dance styles like ['Salsa', 'Bachata']
   recurrence?: string; // e.g., 'every Tuesday', 'every second Friday', etc.
   venueType?: VenueType;
   workshops?: Workshop[];
@@ -310,6 +311,13 @@ function EventCard({
       </div>
       <div className="event-date">{event.date}</div>
       <div className="event-address">{event.address}</div>
+      {event.styles && event.styles.length > 0 && (
+        <div className="event-styles">
+          {event.styles.map((style, index) => (
+            <span key={index} className="event-style-tag">{style}</span>
+          ))}
+        </div>
+      )}
       <div className="event-source">Source: {event.source}</div>
       <div className="event-actions">
         {onToggleSave && (
@@ -363,7 +371,7 @@ function EventCard({
              )}
            </div>
 
-           {/* Workshops Section */}
+           {/* Workshops Section - Only show if workshops exist */}
            {event.workshops && event.workshops.length > 0 && (
              <div className="details-workshops">
                <h3>Workshops</h3>
@@ -379,7 +387,7 @@ function EventCard({
              </div>
            )}
 
-           {/* Party Section */}
+           {/* Party Section - Only show if party exists */}
            {event.party && (
              <div className="details-party">
                <h3>Party</h3>
@@ -410,13 +418,12 @@ function EventCard({
 
            {/* Voting Section */}
            <div className="details-voting">
-             <div className="voting-header">Event Verification</div>
              {loadingVotes ? (
                <div className="voting-loading">Loading votes...</div>
              ) : voteError ? (
                <div className="voting-error">Error: {voteError}</div>
              ) : voteData ? (
-               <div className="voting-buttons">
+               <>
                  <button
                    className={`button vote-exists${userVote === 'exists' ? ' your-vote' : ''}${voteData.highlight === 'green' ? ' highlight' : ''}`}
                    onClick={() => submitVote('exists')}
@@ -442,7 +449,7 @@ function EventCard({
                      Withdraw Vote
                    </button>
                  )}
-               </div>
+               </>
              ) : null}
            </div>
 
@@ -536,7 +543,8 @@ function App() {
   // Add state for loading and error
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<Event[] | null>(null); // For future dynamic results
+  const [searchResults, setSearchResults] = useState<Event[] | null>(null);
+  const [allEvents, setAllEvents] = useState<Event[] | null>(null); // Store all events from backend // For future dynamic results
   
   // Load initial events when component mounts
   useEffect(() => {
@@ -582,14 +590,20 @@ function App() {
     });
   }, []);
 
-  // Listen for scroll to shrink header
+  // Listen for scroll to shrink header - trigger only once at threshold
   useEffect(() => {
+    let hasShrunken = false;
+    const shrinkThreshold = 100; // Pixels scrolled before shrinking
+    
     const onScroll = () => {
-      const minHeight = 120;
-      const maxHeight = 500;
       const scrollY = window.scrollY;
-      const newHeight = Math.max(minHeight, maxHeight - scrollY);
-      setHeaderHeight(newHeight);
+      
+      if (scrollY >= shrinkThreshold && !hasShrunken) {
+        // Shrink header once when threshold is crossed
+        setHeaderHeight(120);
+        hasShrunken = true;
+        console.log('🔽 Header shrunk at scroll position:', scrollY);
+      }
     };
     
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -597,15 +611,50 @@ function App() {
   }, []);
 
   /**
+   * Filters events by selected dance styles.
+   * @param events All events from backend
+   * @param selectedStyles Array of selected dance styles
+   * @returns Filtered events or all events if no styles selected
+   */
+  const filterEventsByStyles = (events: Event[], selectedStyles: string[]): Event[] => {
+    if (!selectedStyles || selectedStyles.length === 0) {
+      return events; // Show all events if no styles selected
+    }
+    
+    return events.filter(event => {
+      // Check if event has any of the selected styles
+      if (!event.styles || event.styles.length === 0) {
+        return false; // Don't show events without style information
+      }
+      
+      return selectedStyles.some(selectedStyle => 
+        event.styles!.some((eventStyle: string) => 
+          eventStyle.toLowerCase().includes(selectedStyle.toLowerCase()) ||
+          selectedStyle.toLowerCase().includes(eventStyle.toLowerCase())
+        )
+      );
+    });
+  };
+
+  /**
    * Handles toggling a dance style in the multi-select.
    * @param style The dance style to toggle.
    */
   const handleStyleToggle = (style: string) => {
-    setSelectedStyles((prev) =>
-      prev.includes(style)
+    setSelectedStyles((prev) => {
+      const newStyles = prev.includes(style)
         ? prev.filter((s) => s !== style)
-        : [...prev, style]
-    );
+        : [...prev, style];
+      
+      // Apply filtering immediately when styles change
+      if (allEvents) {
+        const filtered = filterEventsByStyles(allEvents, newStyles);
+        setSearchResults(filtered);
+        console.log(`🎯 Filtered events: ${filtered.length} out of ${allEvents.length} total events`);
+      }
+      
+      return newStyles;
+    });
   };
 
   /**
@@ -627,7 +676,8 @@ function App() {
       const searchPayload = {
         city: cityQuery,
         date: selectedDate,
-        style: selectedStyles[0] || '', // For now, send first selected style or empty
+        style: selectedStyles[0] || '', // Send first selected style for Google search targeting
+        styles: selectedStyles, // Send all selected styles for frontend filtering
       };
       console.log('📤 Sending search request:', searchPayload);
       
@@ -642,7 +692,14 @@ function App() {
       
       const data = await res.json();
       console.log('📊 Search results:', data);
-      setSearchResults(data.events || []);
+      const allEventsFromBackend = data.events || [];
+      setAllEvents(allEventsFromBackend);
+      
+      // Apply dance style filtering to the results
+      const filteredEvents = filterEventsByStyles(allEventsFromBackend, selectedStyles);
+      setSearchResults(filteredEvents);
+      
+      console.log(`🎯 Showing ${filteredEvents.length} out of ${allEventsFromBackend.length} events after filtering`);
     } catch (err) {
       console.error('❌ Search error:', err);
       setSearchError('Failed to fetch events. Please try again.');

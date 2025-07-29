@@ -6,6 +6,7 @@ const { isAllowedByRobots } = require('../scrapers/robotsCheck');
 const { fetchEventPage } = require('../scrapers/eventScraper');
 const { extractEventMetadata } = require('../scrapers/geminiExtractor');
 const { saveEventIfUnique } = require('../models/event');
+const { isUrlRecentlyVisited, recordUrlVisit } = require('../models/visitedUrl');
 
 /**
  * Orchestrate the collection of Salsa event metadata for a given query.
@@ -35,16 +36,25 @@ async function collectEvents(query) {
     processedCount++;
     console.log(`\n--- Processing URL ${processedCount}/${limitedUrls.length}: ${url} ---`);
     
+    // Check if URL was recently visited
+    const recentlyVisited = await isUrlRecentlyVisited(url);
+    if (recentlyVisited) {
+      console.log('Skipping - URL was recently visited');
+      continue;
+    }
+    
     const allowed = await isAllowedByRobots(url);
     console.log(`robots.txt for ${url}:`, allowed);
     if (!allowed) {
       console.log('Skipping due to robots.txt restriction');
+      await recordUrlVisit(url, false, 'robots.txt disallowed');
       continue;
     }
     
     const html = await fetchEventPage(url);
     if (!html) {
       console.log(`Content filtering failed for ${url}`);
+      await recordUrlVisit(url, false, 'content filtering failed');
       continue;
     }
     
@@ -62,12 +72,17 @@ async function collectEvents(query) {
         if (saved) {
           events.push(metadata);
           console.log(`Successfully added event to results`);
+          await recordUrlVisit(url, true, null);
+        } else {
+          await recordUrlVisit(url, false, 'duplicate event (URL or location/date)');
         }
       } catch (saveError) {
         console.error(`Error saving event from ${url}:`, saveError);
+        await recordUrlVisit(url, false, `database error: ${saveError.message}`);
       }
     } else {
       console.log(`No valid event metadata extracted from ${url}`);
+      await recordUrlVisit(url, false, 'no valid event metadata extracted');
     }
   }
   

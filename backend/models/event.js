@@ -115,12 +115,24 @@ async function isDuplicateEvent(address, date) {
  * @returns {Promise<boolean>} - True if saved, false if duplicate
  */
 async function saveEventIfUnique(event) {
+  // Validate required fields
+  if (!event.name || !event.date || !event.address || !event.source_url) {
+    console.log('❌ Rejecting event - missing required fields:', {
+      name: !!event.name,
+      date: !!event.date,
+      address: !!event.address,
+      source_url: !!event.source_url
+    });
+    return false;
+  }
+
   if (await isUrlRecent(event.source_url)) return false;
   if (await isDuplicateEvent(event.address, event.date)) return false;
+  
   await pool.query(
-    `INSERT INTO events (name, styles, date, workshops, party, address, source_url, recurrence, venue_type, processed_at)
+    `INSERT INTO events (name, date, address, source_url, styles, workshops, party, recurrence, venue_type, processed_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
-    [event.name, event.styles, event.date, event.workshops, event.party, event.address, event.source_url, event.recurrence, event.venue_type]
+    [event.name, event.date, event.address, event.source_url, event.styles, event.workshops, event.party, event.recurrence, event.venue_type]
   );
   return true;
 }

@@ -42,13 +42,13 @@ IMPORTANT: If this page is about salsa/latin dance events, parties, or socials, 
 Extract the following information and return it as a JSON object:
 {
   "name": "string - the name/title of the event",
-  "styles": "string - comma-separated dance styles (e.g., 'Salsa, Bachata, Kizomba')",
-  "date": "string - the event date in YYYY-MM-DD format",
-  "workshops": "array of objects with startTime, endTime, style, level",
-  "party": "object with startTime, endTime (or null if open-end), floors with music info",
+  "styles": "string - comma-separated dance styles from this list ONLY: Salsa, Salsa On 2, Salsa L.A., Salsa Cubana, Bachata, Bachata Dominicana, Bachata Sensual, Kizomba, Zouk, Forró. If no matching styles found, use null",
+  "date": "string - the event date in YYYY-MM-DD format, or null if no date found",
+  "workshops": "array of objects with startTime, endTime, style, level, or null if no workshops",
+  "party": "object with startTime, endTime (or null if open-end), floors with music info, or null if no party info",
   "address": "string - full venue address as precise as possible",
   "source_url": "${sourceUrl}",
-  "recurrence": "string - recurrence pattern like 'wöchentlich', 'jeden Freitag', 'monatlich' or null",
+  "recurrence": "string - normalized recurrence pattern or null if not recurring",
   "venue_type": "string - 'Indoor', 'Outdoor', or 'Not specified'"
 }
 
@@ -58,13 +58,14 @@ Important rules for date extraction:
 - If it's a recurring event, provide the next occurrence date
 - Today's date for reference: ${new Date().toISOString().split('T')[0]}
 - Convert German month names: Januar=01, Februar=02, März=03, April=04, Mai=05, Juni=06, Juli=07, August=08, September=09, Oktober=10, November=11, Dezember=12
+- If no clear date is found, use null
 
 Other important rules:
 - Only extract information about salsa/latin dance events, parties, or socials
 - If no relevant dance event is found, return exactly: null
-- For recurrence, look for patterns like "jeden Dienstag", "wöchentlich", "alle zwei Wochen", "monatlich"
-- For venue type, look for terms like "Open Air", "bei gutem Wetter", "Innenhof", "draußen", "drinnen"
-- Normalize similar recurrence patterns (e.g., "alle zwei Wochen" and "zweiwöchentlich" should both be "alle zwei Wochen")
+- For dance styles: ONLY use styles from the provided list. If the page mentions other styles not in the list, ignore them
+- For recurrence: Normalize similar patterns to the same format (e.g., "alle zwei Wochen" and "zweiwöchentlich" should both become "alle zwei Wochen"). Examples include "wöchentlich", "jeden Freitag", "monatlich", "alle zwei Wochen" - but these are just examples, recognize and normalize any recurring pattern you find
+- For venue type: Look for terms like "Open Air", "bei gutem Wetter", "Innenhof", "draußen", "drinnen" (these are examples, not a complete list)
 - Address should be as complete as possible (street, number, city, postal code if available)
 
 Text Content:

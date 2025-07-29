@@ -13,6 +13,7 @@ app.use(express.json());
 
 const pool = require('./db');
 const { v4: uuidv4 } = require('uuid');
+const { getVisitedUrlStats, cleanupOldVisitedUrls, URL_REVISIT_COOLDOWN_DAYS } = require('./models/visitedUrl');
 const { collectEvents } = require('./jobs/collectEvents');
 const { findEvents } = require('./models/event');
 
@@ -299,6 +300,36 @@ app.get('/api/cities', (req, res) => {
   res.json(filteredCities);
 });
 
+// GET visited URL statistics
+app.get('/api/visited-urls/stats', async (req, res) => {
+  try {
+    const stats = await getVisitedUrlStats();
+    res.json({
+      ...stats,
+      cooldown_days: URL_REVISIT_COOLDOWN_DAYS
+    });
+  } catch (error) {
+    console.error('Error getting visited URL stats:', error);
+    res.status(500).json({ error: 'Failed to get visited URL statistics' });
+  }
+});
+
+// POST cleanup old visited URLs
+app.post('/api/visited-urls/cleanup', async (req, res) => {
+  try {
+    const deletedCount = await cleanupOldVisitedUrls();
+    res.json({
+      message: 'Cleanup completed',
+      deleted_urls: deletedCount,
+      cooldown_days: URL_REVISIT_COOLDOWN_DAYS
+    });
+  } catch (error) {
+    console.error('Error cleaning up visited URLs:', error);
+    res.status(500).json({ error: 'Failed to cleanup visited URLs' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Backend API listening on port ${PORT}`);
+  console.log(`URL revisit cooldown: ${URL_REVISIT_COOLDOWN_DAYS} days`);
 }); 
