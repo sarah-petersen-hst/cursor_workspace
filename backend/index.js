@@ -206,7 +206,7 @@ app.delete('/api/venue-vote', async (req, res) => {
  * Triggers event collection and returns found events.
  */
 app.post('/api/events/search', async (req, res) => {
-  const { city, date, style } = req.body;
+  const { city, date, style, styles } = req.body;
   if (!city || !date) {
     return res.status(400).json({ error: 'City and date are required' });
   }
@@ -219,9 +219,17 @@ app.post('/api/events/search', async (req, res) => {
   try {
     console.log(`Starting search for: ${city}, ${date}, ${style}`);
     
-    // Build Google query
+    // Build Google query - include dance style for better targeting but still scrape all dance events
     const weekday = new Date(date).toLocaleDateString('de-DE', { weekday: 'long' });
-    const query = `Salsa Veranstaltung ${weekday} ${city} site:.de`;
+    let query = `Salsa Veranstaltung ${weekday} ${city} site:.de`;
+    
+    // Add dance style to query if provided (for better Google targeting)
+    if (style) {
+      query = `${style} Veranstaltung ${weekday} ${city} site:.de`;
+      console.log(`Including dance style "${style}" in Google search query`);
+    }
+    
+    console.log(`Google search query: ${query}`);
     
     // Run the scraping with timeout protection
     const searchPromise = collectEvents(query);
@@ -229,11 +237,11 @@ app.post('/api/events/search', async (req, res) => {
     await Promise.race([searchPromise, timeoutPromise]);
     console.log('Event collection completed, querying database...');
     
-    // Query the DB for all relevant events (existing + new)
-    const events = await findEvents(city, date, style);
+    // Query the DB for all relevant events (existing + new) - don't filter by style in DB
+    const events = await findEvents(city, date, ''); // Empty style to get all events
     console.log(`Found ${events.length} events in database`);
     
-    res.json({ events });
+    res.json({ events, requestedStyles: styles || [] });
   } catch (err) {
     console.error('Error in /api/events/search:', err);
     if (err && err.stack) console.error(err.stack);
@@ -242,9 +250,10 @@ app.post('/api/events/search', async (req, res) => {
     if (err.message.includes('timeout')) {
       console.log('Search timed out, returning existing events from database...');
       try {
-        const events = await findEvents(city, date, style);
+        const events = await findEvents(city, date, ''); // Empty style to get all events
         res.json({ 
           events, 
+          requestedStyles: styles || [],
           warning: 'Search timed out, showing existing events. New events may be added in background.' 
         });
         return;

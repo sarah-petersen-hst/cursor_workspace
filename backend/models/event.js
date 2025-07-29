@@ -14,6 +14,7 @@ function transformEventForFrontend(dbEvent) {
     address: dbEvent.address || '',
     source: dbEvent.source_url || '', // source_url → source
     trusted: isEventTrusted(dbEvent.source_url), // Determine if source is trusted
+    styles: Array.isArray(dbEvent.styles) ? dbEvent.styles : [], // Include dance styles
     recurrence: dbEvent.recurrence || null,
     venueType: dbEvent.venue_type || 'Not specified', // venue_type → venueType
     // Add event details if they exist
