@@ -130,8 +130,19 @@ const EVENT_DETAILS: Record<string, EventDetails> = {
  * @param {Event} event - The event to display.
  * @returns {JSX.Element}
  */
-function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: boolean; onToggleSave?: () => void }) {
-  const [expanded, setExpanded] = useState(false);
+function EventCard({ 
+  event, 
+  isSaved, 
+  onToggleSave, 
+  expanded, 
+  onToggleExpanded 
+}: { 
+  event: Event; 
+  isSaved?: boolean; 
+  onToggleSave?: () => void;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+}) {
   const [voteData, setVoteData] = useState<{ exists: number; not_exists: number; highlight: 'green' | 'yellow'; week: string } | null>(null);
   const [userVote, setUserVote] = useState<'exists' | 'not_exists' | null>(null);
   const [loadingVotes, setLoadingVotes] = useState(false);
@@ -320,12 +331,7 @@ function EventCard({ event, isSaved, onToggleSave }: { event: Event; isSaved?: b
             party: event.party,
             recurrence: event.recurrence
           });
-          setExpanded((prev) => {
-            console.log('🔄 Setting expanded from', prev, 'to', !prev, 'for event:', event.id);
-            const newExpanded = !prev;
-            console.log('✅ New expanded state will be:', newExpanded);
-            return newExpanded;
-          });
+          onToggleExpanded();
         }} aria-expanded={expanded} aria-controls={`details-${event.id}`}>{expanded ? 'Hide Details' : 'Details'}</button>
       </div>
              {expanded && (
@@ -509,6 +515,23 @@ function App() {
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
   const [cityLoading, setCityLoading] = useState(false);
   const [cityError, setCityError] = useState<string | null>(null);
+  // Expanded events state (moved here to persist across re-renders)
+  const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
+
+  // Toggle expanded state for an event
+  const toggleEventExpanded = (eventId: number) => {
+    setExpandedEvents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+        console.log(`Expanded state changed: false for event: ${eventId}`);
+      } else {
+        newSet.add(eventId);
+        console.log(`Expanded state changed: true for event: ${eventId}`);
+      }
+      return newSet;
+    });
+  };
 
   // Add state for loading and error
   const [searchLoading, setSearchLoading] = useState(false);
@@ -645,8 +668,16 @@ function App() {
   function EventCardWithSave(props: { event: Event }) {
     const { event } = props;
     const isSaved = savedEventIds.includes(event.id);
+    const eventIdNumber = parseInt(event.id);
+    const expanded = expandedEvents.has(eventIdNumber);
     return (
-      <EventCard event={event} isSaved={isSaved} onToggleSave={() => toggleSaveEvent(event.id)} />
+      <EventCard 
+        event={event} 
+        isSaved={isSaved} 
+        onToggleSave={() => toggleSaveEvent(event.id)}
+        expanded={expanded}
+        onToggleExpanded={() => toggleEventExpanded(eventIdNumber)}
+      />
     );
   }
 
