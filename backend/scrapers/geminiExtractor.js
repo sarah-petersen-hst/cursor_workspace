@@ -14,10 +14,10 @@ if (!API_KEY) {
 const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
 /**
- * Extracts structured event metadata from HTML content using the Gemini API
+ * Extracts ALL structured event metadata from HTML content using the Gemini API
  * @param {string} htmlText - The HTML content to analyze
  * @param {string} sourceUrl - The source URL for context
- * @returns {Promise<Object|null>} Extracted event metadata or null if extraction fails
+ * @returns {Promise<Array<Object>|null>} Array of extracted event metadata or null if extraction fails
  */
 
 async function extractEventMetadata(htmlText, sourceUrl) {
@@ -35,11 +35,15 @@ async function extractEventMetadata(htmlText, sourceUrl) {
     
     const prompt = `You are an expert at extracting structured event information from German websites about salsa dance events.
 
-Please analyze the following text content from ${sourceUrl} and extract ONLY salsa dance event information.
+Please analyze the following text content from ${sourceUrl} and extract ALL salsa dance event information.
 
-IMPORTANT: If this page is about salsa/latin dance events, parties, or socials, extract the information. If it's only about courses or unrelated content, return exactly: null
+IMPORTANT: 
+- If this page is about salsa/latin dance events, parties, or socials, extract the information. If it's only about courses or unrelated content, return exactly: null
+- If multiple events are found, return ALL events as an array of JSON objects
+- If only one event is found, you can return either a single object or an array with one object
+- Include all events that have at least a name, date, and address
 
-Extract the following information and return it as a JSON object:
+Extract the following information and return it as JSON (single object or array of objects):
 {
   "name": "string - the name/title of the event",
   "styles": "string - comma-separated dance styles from this list ONLY: Salsa, Salsa On 2, Salsa L.A., Salsa Cubana, Bachata, Bachata Dominicana, Bachata Sensual, Kizomba, Zouk, Forró. If no matching styles found, use null",
@@ -92,21 +96,109 @@ ${cleanText.substring(0, 6000)}`;
       console.log('Full response:', text);
       return null;
     }
+    
+    console.log('Found JSON match, attempting to parse...');
 
     try {
-      const extractedData = JSON.parse(jsonMatch[0]);
+      let jsonString = jsonMatch[0];
       
-      // Validate that we got meaningful event data
+      // Handle multiple events: detect various patterns of multiple objects
+      const multipleEventPatterns = [
+        '},\n{',      // },\n{
+        '},\n  {',    // },\n  {
+        '},\n\n{',    // },\n\n{
+        '},\n    {',  // },\n    {
+        '},\r\n{',    // Windows line endings
+        '},\r\n  {'   // Windows with spaces
+      ];
+      
+      const hasMultipleEvents = multipleEventPatterns.some(pattern => jsonString.includes(pattern));
+      
+      if (hasMultipleEvents) {
+        console.log('Multiple events detected, wrapping in array...');
+        jsonString = '[' + jsonString + ']';
+        console.log('Wrapped JSON string length:', jsonString.length);
+      }
+      
+      const extractedData = JSON.parse(jsonString);
+      
+      // If it's an array, return all valid events with required fields
+      if (Array.isArray(extractedData)) {
+        console.log(`Found ${extractedData.length} events in response`);
+        const validEvents = [];
+        for (const event of extractedData) {
+          if (event && event.name && event.date && event.address) {
+            console.log(`Valid event found: ${event.name}`);
+            validEvents.push(event);
+          } else {
+            console.log(`Skipping invalid event (missing required fields):`, event?.name || 'unnamed');
+          }
+        }
+        
+        if (validEvents.length === 0) {
+          console.log('No valid events found with required fields (name, date, address)');
+          return null;
+        }
+        
+        console.log(`Returning ${validEvents.length} valid events`);
+        return validEvents; // Return array of all valid events
+      }
+      
+      // Single event validation
       if (!extractedData || !extractedData.name) {
         console.log('No valid event data extracted - missing name');
         return null;
       }
 
-      console.log('Successfully extracted event metadata:', extractedData);
-      return extractedData;
+      console.log('Successfully extracted single event metadata:', extractedData);
+      console.log('Single event validation passed - wrapping in array');
+      return [extractedData]; // Wrap single event in array for consistency
     } catch (parseError) {
       console.error('Error parsing JSON from Gemini response:', parseError);
       console.log('JSON string that failed to parse:', jsonMatch[0]);
+      
+      // Fallback: try to split and parse individual events
+      console.log('Attempting fallback parsing of individual events...');
+      try {
+        const jsonString = jsonMatch[0];
+        
+        // Split by pattern },\n{ or similar and try to parse each part
+        const eventStrings = jsonString.split(/},\s*{/);
+        
+        if (eventStrings.length > 1) {
+          console.log(`Found ${eventStrings.length} potential events to parse individually`);
+          const validEvents = [];
+          
+          for (let i = 0; i < eventStrings.length; i++) {
+            let eventStr = eventStrings[i];
+            
+            // Fix the JSON by adding missing braces
+            if (i > 0) eventStr = '{' + eventStr;  // Add opening brace
+            if (i < eventStrings.length - 1) eventStr = eventStr + '}';  // Add closing brace
+            
+            try {
+              console.log(`Parsing individual event ${i + 1}...`);
+              const event = JSON.parse(eventStr);
+              if (event && event.name && event.date && event.address) {
+                console.log(`Valid individual event found: ${event.name}`);
+                validEvents.push(event);
+              } else {
+                console.log(`Skipping invalid individual event (missing required fields):`, event?.name || 'unnamed');
+              }
+            } catch (individualError) {
+              console.log(`Failed to parse individual event ${i + 1}:`, individualError.message);
+            }
+          }
+          
+          if (validEvents.length > 0) {
+            console.log(`Fallback parsing successful: ${validEvents.length} valid events`);
+            return validEvents;
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback parsing also failed:', fallbackError.message);
+      }
+      
       return null;
     }
 

@@ -1,12 +1,5 @@
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'salsa_events',
-  password: process.env.DB_PASSWORD || 'password',
-  port: process.env.DB_PORT || 5432,
-});
+// Use the existing database pool instead of creating a new one
+const pool = require('../db');
 
 // Configurable timeframe for URL revisit prevention (in days)
 const URL_REVISIT_COOLDOWN_DAYS = process.env.URL_REVISIT_COOLDOWN_DAYS || 3;

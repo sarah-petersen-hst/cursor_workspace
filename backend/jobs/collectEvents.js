@@ -59,27 +59,46 @@ async function collectEvents(query) {
     }
     
     console.log('Content filtering passed, proceeding to Gemini extraction...');
-    const metadata = await extractEventMetadata(html, url);
-    console.log('Gemini extracted metadata:', metadata);
+    const extractedEvents = await extractEventMetadata(html, url);
+    console.log('Gemini extracted metadata:', extractedEvents);
     
-    if (metadata && metadata.name) {
-      console.log(`Valid event found: ${metadata.name}`);
-      metadata.source_url = url;
+    if (extractedEvents && Array.isArray(extractedEvents) && extractedEvents.length > 0) {
+      console.log(`Found ${extractedEvents.length} valid events from ${url}`);
+      let savedCount = 0;
+      let duplicateCount = 0;
+      let errorCount = 0;
       
-      try {
-        const saved = await saveEventIfUnique(metadata);
-        console.log(`Event saved for ${url}:`, saved);
-        if (saved) {
-          events.push(metadata);
-          console.log(`Successfully added event to results`);
-          await recordUrlVisit(url, true, null);
-        } else {
-          await recordUrlVisit(url, false, 'duplicate event (URL or location/date)');
+      for (const metadata of extractedEvents) {
+        console.log(`Processing event: ${metadata.name}`);
+        metadata.source_url = url;
+        
+        try {
+          const saved = await saveEventIfUnique(metadata);
+          console.log(`Event "${metadata.name}" saved:`, saved);
+          if (saved) {
+            events.push(metadata);
+            savedCount++;
+            console.log(`Successfully added event "${metadata.name}" to results`);
+          } else {
+            duplicateCount++;
+            console.log(`Event "${metadata.name}" was duplicate, not saved`);
+          }
+        } catch (saveError) {
+          errorCount++;
+          console.error(`Error saving event "${metadata.name}" from ${url}:`, saveError);
         }
-      } catch (saveError) {
-        console.error(`Error saving event from ${url}:`, saveError);
-        await recordUrlVisit(url, false, `database error: ${saveError.message}`);
       }
+      
+      // Record URL visit based on overall success
+      if (savedCount > 0) {
+        await recordUrlVisit(url, true, `saved ${savedCount}/${extractedEvents.length} events`);
+      } else if (duplicateCount > 0) {
+        await recordUrlVisit(url, false, `all ${extractedEvents.length} events were duplicates`);
+      } else {
+        await recordUrlVisit(url, false, `failed to save any of ${extractedEvents.length} events`);
+      }
+      
+      console.log(`URL processing complete: ${savedCount} saved, ${duplicateCount} duplicates, ${errorCount} errors`);
     } else {
       console.log(`No valid event metadata extracted from ${url}`);
       await recordUrlVisit(url, false, 'no valid event metadata extracted');

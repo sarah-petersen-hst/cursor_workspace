@@ -129,10 +129,19 @@ async function saveEventIfUnique(event) {
   if (await isUrlRecent(event.source_url)) return false;
   if (await isDuplicateEvent(event.address, event.date)) return false;
   
+  // Convert styles from comma-separated string to array for JSONB storage
+  let stylesArray = null;
+  if (event.styles && typeof event.styles === 'string') {
+    stylesArray = event.styles.split(',').map(style => style.trim()).filter(style => style.length > 0);
+    console.log(`🎨 Converted styles from "${event.styles}" to:`, stylesArray);
+  } else if (Array.isArray(event.styles)) {
+    stylesArray = event.styles;
+  }
+  
   await pool.query(
     `INSERT INTO events (name, date, address, source_url, styles, workshops, party, recurrence, venue_type, processed_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
-    [event.name, event.date, event.address, event.source_url, event.styles, event.workshops, event.party, event.recurrence, event.venue_type]
+    [event.name, event.date, event.address, event.source_url, JSON.stringify(stylesArray), event.workshops, event.party, event.recurrence, event.venue_type]
   );
   return true;
 }
