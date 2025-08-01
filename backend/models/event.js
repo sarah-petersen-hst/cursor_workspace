@@ -115,19 +115,21 @@ async function isDuplicateEvent(address, date) {
  * @returns {Promise<boolean>} - True if saved, false if duplicate
  */
 async function saveEventIfUnique(event) {
-  // Validate required fields
-  if (!event.name || !event.date || !event.address || !event.source_url) {
+  // Validate required fields - now expecting dates array instead of single date
+  if (!event.name || !event.dates || !Array.isArray(event.dates) || event.dates.length === 0 || !event.address || !event.source_url || !event.city) {
     console.log('❌ Rejecting event - missing required fields:', {
       name: !!event.name,
-      date: !!event.date,
+      dates: Array.isArray(event.dates) ? event.dates.length : 0,
       address: !!event.address,
+      city: !!event.city,
       source_url: !!event.source_url
     });
     return false;
   }
 
   if (await isUrlRecent(event.source_url)) return false;
-  if (await isDuplicateEvent(event.address, event.date)) return false;
+  // Use first date for duplicate checking
+  if (await isDuplicateEvent(event.address, event.dates[0])) return false;
   
   // Convert styles from comma-separated string to array for JSONB storage
   let stylesArray = null;
@@ -138,11 +140,14 @@ async function saveEventIfUnique(event) {
     stylesArray = event.styles;
   }
   
+  // Save event with first date (for compatibility with existing structure)
   await pool.query(
-    `INSERT INTO events (name, date, address, source_url, styles, workshops, party, recurrence, venue_type, processed_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
-    [event.name, event.date, event.address, event.source_url, JSON.stringify(stylesArray), event.workshops, event.party, event.recurrence, event.venue_type]
+    `INSERT INTO events (name, date, address, source_url, styles, workshops, party, recurrence, recurrence_type, venue_type, processed_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())`,
+    [event.name, event.dates[0], event.address, event.source_url, JSON.stringify(stylesArray), event.workshops, event.party, event.recurrence, event.recurrence_type, event.venue_type]
   );
+  
+  console.log(`✅ Saved event "${event.name}" with ${event.dates.length} dates, city: ${event.city}`);
   return true;
 }
 

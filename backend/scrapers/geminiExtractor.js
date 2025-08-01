@@ -13,6 +13,8 @@ if (!API_KEY) {
 // Initialize the Google GenAI client
 const genAI = new GoogleGenAI({ apiKey: API_KEY });
 
+
+
 /**
  * Extracts ALL structured event metadata from HTML content using the Gemini API
  * @param {string} htmlText - The HTML content to analyze
@@ -47,22 +49,38 @@ Extract the following information and return it as JSON (single object or array 
 {
   "name": "string - the name/title of the event",
   "styles": "string - comma-separated dance styles from this list ONLY: Salsa, Salsa On 2, Salsa L.A., Salsa Cubana, Bachata, Bachata Dominicana, Bachata Sensual, Kizomba, Zouk, Forró. If no matching styles found, use null",
-  "date": "string - the event date in YYYY-MM-DD format, or null if no date found",
+  "dates": "array of strings - ALL event dates in YYYY-MM-DD format. For specific dates like '13. April, 15. Juni', convert to ['2025-04-13', '2025-06-15']. For recurring events like 'jeden Montag', calculate the next 4 occurrences starting from next Monday",
   "workshops": "array of objects with startTime, endTime, style, level, or null if no workshops",
   "party": "object with startTime, endTime (or null if open-end), floors with music info, or null if no party info",
   "address": "string - full venue address as precise as possible",
+  "city": "string - ONLY the city name extracted from address (e.g., 'Berlin', 'Cologne', 'Munich')",
   "source_url": "${sourceUrl}",
-  "recurrence": "string - normalized recurrence pattern or null if not recurring",
+  "recurrence": "string - exact recurrence pattern found in text (e.g., 'jeden Montag', 'wöchentlich', '13. April, 15. Juni')",
+  "recurrence_type": "string - 'weekly_monday', 'weekly_tuesday', etc., 'monthly', 'specific_dates', or null",
   "venue_type": "string - 'Indoor', 'Outdoor', or 'Not specified'"
 }
 
 Important rules for date extraction:
 - Look for specific dates in formats like "15.12.2024", "15. Dezember", "Samstag, 15.12."
-- If only a weekday is mentioned (e.g., "jeden Samstag"), calculate the next occurrence of that weekday
-- If it's a recurring event, provide the next occurrence date
-- Today's date for reference: ${new Date().toISOString().split('T')[0]}
 - Convert German month names: Januar=01, Februar=02, März=03, April=04, Mai=05, Juni=06, Juli=07, August=08, September=09, Oktober=10, November=11, Dezember=12
-- If no clear date is found, use null
+- Today's date for reference: ${new Date().toISOString().split('T')[0]}
+
+RECURRING EVENTS - Calculate actual dates:
+- "jeden Montag" → calculate next 4 Mondays: ['2025-01-20', '2025-01-27', '2025-02-03', '2025-02-10']
+- "jeden Dienstag" → calculate next 4 Tuesdays
+- "wöchentlich" + specific day → calculate next 4 occurrences
+- "monatlich" → calculate next 4 monthly occurrences
+
+MULTIPLE SPECIFIC DATES:
+- "13. April, 15. Juni, 31. August" → ['2025-04-13', '2025-06-15', '2025-08-31']
+- "Fünf Events in 2025: 13. April, 15. Juni..." → extract all dates mentioned
+
+RECURRENCE TYPE classification:
+- "jeden Montag" → recurrence_type: "weekly_monday"
+- "jeden Dienstag" → recurrence_type: "weekly_tuesday" 
+- "wöchentlich" → recurrence_type: "weekly" (if no specific day mentioned)
+- "monatlich" → recurrence_type: "monthly"
+- Multiple specific dates → recurrence_type: "specific_dates"
 
 Other important rules:
 - Only extract information about salsa/latin dance events, parties, or socials
@@ -127,11 +145,16 @@ ${cleanText.substring(0, 6000)}`;
         console.log(`Found ${extractedData.length} events in response`);
         const validEvents = [];
         for (const event of extractedData) {
-          if (event && event.name && event.date && event.address) {
-            console.log(`Valid event found: ${event.name}`);
+          if (event && event.name && event.address && event.city && (event.dates && event.dates.length > 0)) {
+            console.log(`Valid event found: ${event.name} with ${event.dates.length} dates in ${event.city}`);
             validEvents.push(event);
           } else {
-            console.log(`Skipping invalid event (missing required fields):`, event?.name || 'unnamed');
+            console.log(`Skipping invalid event (missing required fields):`, {
+              name: !!event?.name,
+              address: !!event?.address, 
+              city: !!event?.city,
+              dates: event?.dates?.length || 0
+            });
           }
         }
         
@@ -145,8 +168,13 @@ ${cleanText.substring(0, 6000)}`;
       }
       
       // Single event validation
-      if (!extractedData || !extractedData.name) {
-        console.log('No valid event data extracted - missing name');
+      if (!extractedData || !extractedData.name || !extractedData.address || !extractedData.city || !(extractedData.dates && extractedData.dates.length > 0)) {
+        console.log('No valid event data extracted - missing required fields:', {
+          name: !!extractedData?.name,
+          address: !!extractedData?.address,
+          city: !!extractedData?.city,
+          dates: extractedData?.dates?.length || 0
+        });
         return null;
       }
 
