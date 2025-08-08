@@ -159,8 +159,25 @@ async function saveEventIfUnique(event) {
  * @returns {Promise<object[]>} - Frontend-compatible events
  */
 async function findEvents(city, date, style) {
+  // Enhanced input validation and SQL injection protection
+  const MAX_CITY_LENGTH = 100;
+  const MAX_STYLE_LENGTH = 50;
+  
+  // Validate inputs to prevent injection
+  if (city && (typeof city !== 'string' || city.length > MAX_CITY_LENGTH)) {
+    throw new Error('Invalid city parameter');
+  }
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error('Invalid date format, must be YYYY-MM-DD');
+  }
+  if (style && (typeof style !== 'string' || style.length > MAX_STYLE_LENGTH)) {
+    throw new Error('Invalid style parameter');
+  }
+  
+  // Build query with parameterized statements only
   let query = `SELECT * FROM events WHERE 1=1`;
   const params = [];
+  
   if (city) {
     query += ` AND LOWER(address) LIKE $${params.length + 1}`;
     params.push(`%${city.toLowerCase()}%`);
@@ -170,14 +187,19 @@ async function findEvents(city, date, style) {
     params.push(date);
   }
   if (style) {
-    query += ` AND styles ILIKE $${params.length + 1}`;
+    query += ` AND styles::text ILIKE $${params.length + 1}`;
     params.push(`%${style}%`);
   }
-  query += ` ORDER BY date ASC, name ASC`;
-  const result = await pool.query(query, params);
   
-  // Transform all events to frontend format
-  return result.rows.map(transformEventForFrontend);
+  query += ` ORDER BY date ASC, name ASC LIMIT 1000`; // Prevent large result sets
+  
+  try {
+    const result = await pool.query(query, params);
+    return result.rows.map(transformEventForFrontend);
+  } catch (err) {
+    console.error('Database query error:', err.message);
+    throw new Error('Database query failed');
+  }
 }
 
 module.exports = { isUrlRecent, isDuplicateEvent, saveEventIfUnique, findEvents }; 

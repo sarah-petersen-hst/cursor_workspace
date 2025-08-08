@@ -3,13 +3,71 @@
 
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const { body, query, param, validationResult } = require('express-validator');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-app.use(cors());
-app.use(express.json());
+// Enhanced CORS configuration - restrict to frontend origin only
+const corsOptions = {
+  origin: [FRONTEND_URL, 'http://localhost:3000'],
+  methods: ['GET', 'POST', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false,
+  maxAge: 86400 // Cache preflight for 24 hours
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10mb' })); // Limit payload size
+
+// Rate limiting middleware
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const voteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 votes per minute
+  message: { error: 'Too many votes, please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // Limit each IP to 30 searches per minute
+  message: { error: 'Too many search requests, please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply general rate limiting to all requests
+app.use(generalLimiter);
+
+// Input validation middleware
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      error: 'Invalid input', 
+      details: errors.array().map(err => ({ field: err.path, message: err.msg }))
+    });
+  }
+  next();
+};
+
+// UUID validation helper
+const isValidUUID = (uuid) => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
 
 const pool = require('./db');
 const { v4: uuidv4 } = require('uuid');
@@ -29,11 +87,21 @@ app.get('/api/health', (req, res) => {
  * Body: { eventId: string, userUuid: string, voteType: 'exists' | 'not_exists' }
  * Enforces one vote per user per event per week.
  */
-app.post('/api/vote', async (req, res) => {
+app.post('/api/vote', 
+  voteLimiter,
+  [
+    body('eventId').isUUID().withMessage('Invalid event ID format'),
+    body('userUuid').custom(value => {
+      if (!isValidUUID(value)) {
+        throw new Error('Invalid user UUID format');
+      }
+      return true;
+    }),
+    body('voteType').isIn(['exists', 'not_exists']).withMessage('Invalid vote type')
+  ],
+  handleValidationErrors,
+  async (req, res) => {
   const { eventId, userUuid, voteType } = req.body;
-  if (!eventId || !userUuid || !['exists', 'not_exists'].includes(voteType)) {
-    return res.status(400).json({ error: 'Invalid request body' });
-  }
   try {
     // Upsert: Try to insert, if conflict on unique index, update the vote_type and vote_time
     const result = await pool.query(
@@ -56,11 +124,20 @@ app.post('/api/vote', async (req, res) => {
  * Body: { eventId: string, userUuid: string }
  * Deletes the user's vote for the event for the current week.
  */
-app.delete('/api/vote', async (req, res) => {
+app.delete('/api/vote',
+  voteLimiter,
+  [
+    body('eventId').isUUID().withMessage('Invalid event ID format'),
+    body('userUuid').custom(value => {
+      if (!isValidUUID(value)) {
+        throw new Error('Invalid user UUID format');
+      }
+      return true;
+    })
+  ],
+  handleValidationErrors,
+  async (req, res) => {
   const { eventId, userUuid } = req.body;
-  if (!eventId || !userUuid) {
-    return res.status(400).json({ error: 'Invalid request body' });
-  }
   try {
     await pool.query(
       `DELETE FROM votes
@@ -80,7 +157,18 @@ app.delete('/api/vote', async (req, res) => {
  * Returns vote counts for the current and previous week for the given event.
  * If userUuid is provided, also returns the user's vote for the current week.
  */
-app.get('/api/votes/:eventId', async (req, res) => {
+app.get('/api/votes/:eventId',
+  [
+    param('eventId').isUUID().withMessage('Invalid event ID format'),
+    query('userUuid').optional().custom(value => {
+      if (value && !isValidUUID(value)) {
+        throw new Error('Invalid user UUID format');
+      }
+      return true;
+    })
+  ],
+  handleValidationErrors,
+  async (req, res) => {
   const { eventId } = req.params;
   const { userUuid } = req.query;
   try {
@@ -132,11 +220,21 @@ app.get('/api/votes/:eventId', async (req, res) => {
  */
 
 // POST venue vote (upsert)
-app.post('/api/venue-vote', async (req, res) => {
+app.post('/api/venue-vote',
+  voteLimiter,
+  [
+    body('eventId').isUUID().withMessage('Invalid event ID format'),
+    body('userUuid').custom(value => {
+      if (!isValidUUID(value)) {
+        throw new Error('Invalid user UUID format');
+      }
+      return true;
+    }),
+    body('voteType').isIn(['indoor', 'outdoor']).withMessage('Invalid venue vote type')
+  ],
+  handleValidationErrors,
+  async (req, res) => {
   const { eventId, userUuid, voteType } = req.body;
-  if (!eventId || !userUuid || !['indoor', 'outdoor'].includes(voteType)) {
-    return res.status(400).json({ error: 'Invalid request body' });
-  }
   try {
     const result = await pool.query(
       `INSERT INTO venue_votes (event_id, user_uuid, vote_type, vote_time)
@@ -153,7 +251,18 @@ app.post('/api/venue-vote', async (req, res) => {
 });
 
 // GET venue votes for an event
-app.get('/api/venue-votes/:eventId', async (req, res) => {
+app.get('/api/venue-votes/:eventId',
+  [
+    param('eventId').isUUID().withMessage('Invalid event ID format'),
+    query('userUuid').optional().custom(value => {
+      if (value && !isValidUUID(value)) {
+        throw new Error('Invalid user UUID format');
+      }
+      return true;
+    })
+  ],
+  handleValidationErrors,
+  async (req, res) => {
   const { eventId } = req.params;
   const { userUuid } = req.query;
   try {
@@ -185,11 +294,20 @@ app.get('/api/venue-votes/:eventId', async (req, res) => {
 });
 
 // DELETE venue vote
-app.delete('/api/venue-vote', async (req, res) => {
+app.delete('/api/venue-vote',
+  voteLimiter,
+  [
+    body('eventId').isUUID().withMessage('Invalid event ID format'),
+    body('userUuid').custom(value => {
+      if (!isValidUUID(value)) {
+        throw new Error('Invalid user UUID format');
+      }
+      return true;
+    })
+  ],
+  handleValidationErrors,
+  async (req, res) => {
   const { eventId, userUuid } = req.body;
-  if (!eventId || !userUuid) {
-    return res.status(400).json({ error: 'Invalid request body' });
-  }
   try {
     await pool.query(
       `DELETE FROM venue_votes WHERE event_id = $1 AND user_uuid = $2`,
@@ -206,11 +324,17 @@ app.delete('/api/venue-vote', async (req, res) => {
  * Body: { city, date, style }
  * Triggers event collection and returns found events.
  */
-app.post('/api/events/search', async (req, res) => {
+app.post('/api/events/search',
+  searchLimiter,
+  [
+    body('city').isString().isLength({ min: 1, max: 100 }).matches(/^[a-zA-ZäöüÄÖÜß \-]*$/).withMessage('Invalid city format'),
+    body('date').isISO8601().withMessage('Invalid date format'),
+    body('style').optional().isString().isLength({ max: 50 }).matches(/^[a-zA-Z \-]*$/).withMessage('Invalid style format'),
+    body('styles').optional().isArray().withMessage('Styles must be an array')
+  ],
+  handleValidationErrors,
+  async (req, res) => {
   const { city, date, style, styles } = req.body;
-  if (!city || !date) {
-    return res.status(400).json({ error: 'City and date are required' });
-  }
 
   // Set a timeout for the entire operation
   const timeoutPromise = new Promise((_, reject) => {
@@ -282,15 +406,18 @@ const GERMAN_CITIES = [
  * GET /api/cities?query=...
  * Returns a list of city names matching the query. Safe from SQL injection.
  */
-app.get('/api/cities', (req, res) => {
+app.get('/api/cities',
+  searchLimiter,
+  [
+    query('query')
+      .isString()
+      .isLength({ min: 1, max: 50 })
+      .matches(/^[a-zA-ZäöüÄÖÜß \-]*$/)
+      .withMessage('Query must contain only letters, spaces, hyphens, and German umlauts')
+  ],
+  handleValidationErrors,
+  (req, res) => {
   const { query } = req.query;
-  if (typeof query !== 'string' || query.length > 100) {
-    return res.status(400).json({ error: 'Invalid city query' });
-  }
-  // Only allow letters, spaces, hyphens, and German umlauts
-  if (!/^[a-zA-ZäöüÄÖÜß \-]*$/.test(query)) {
-    return res.status(400).json({ error: 'Invalid characters in city query' });
-  }
   
   // Filter cities based on query
   const filteredCities = GERMAN_CITIES.filter(city => 
